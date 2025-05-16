@@ -57,3 +57,14 @@ def get_experiments(api_client):
     names = [exp.title for exp in exps]
     ids = [exp.id for exp in exps]
     return names, ids, exps
+
+def create_experiment(api_client, name, comment=''):
+    experimentsApi = elabapi_python.ExperimentsApi(api_client)
+    experimentsApi.post_experiment()
+    names, ids, exps = get_experiments(api_client)
+    exp_id = ids[names.index('Untitled')]
+    experimentsApi.patch_experiment(exp_id, body={'title':name})
+    if comment != '':
+        experimentsApi.patch_experiment(exp_id, body={'body':comment})
+
+    return True

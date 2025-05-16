@@ -15,7 +15,9 @@ filterwarnings('ignore')
 
 from streamlit_drawable_canvas import st_canvas
 
+st.title ("eLabFTW Log")
 
+st.header('Draw a sketch and add it to the entry')
 
 drawing_mode = st.sidebar.selectbox(
     "Drawing tool:",

@@ -9,6 +9,8 @@ from warnings import filterwarnings
 import datetime
 from utils import *
 
+st.logo('./content/logo.png', size="large")
+
 filterwarnings('ignore')
 with open('digi.key','r') as f:
     key = f.readline().strip()
@@ -25,12 +27,14 @@ api_client.set_default_header(header_name='Authorization', header_value=key)
 st.session_state['api_client'] = api_client
 
 # Define the pages
-main_page = st.Page("pages/main_page.py", title="Main Page")
-page_2 = st.Page("pages/comment.py", title="Add comment")
-page_3 = st.Page("pages/sketch.py", title="Add sketch")
+main_page = st.Page("pages/main_page.py", title="Select experiment")
+page_2 = st.Page("pages/create_exp.py", title="Create new experiment")
+page_3 = st.Page("pages/comment.py", title="Add comment")
+page_4 = st.Page("pages/sketch.py", title="Add sketch")
+
 
 # Set up navigation
-pg = st.navigation([main_page, page_2, page_3])
+pg = st.navigation([main_page, page_2, page_3, page_4])
 
 # Run the selected page
 pg.run()
