@@ -26,6 +26,32 @@ api_client.set_default_header(header_name='Authorization', header_value=key)
 
 st.session_state['api_client'] = api_client
 
+
+st.set_page_config(
+    page_title="ElabFTW Logger",
+)
+
+st.write("# Welcome to the ElabFTW log app!")
+st.image("content/e-conversion_logo.png")
+
+
+@st.dialog("Login")
+def login():
+    st.write("Please type your name here:")
+    fn = st.text_input('first name')
+    ln = st.text_input('last name')
+    if st.button("login"):
+        st.session_state['fn'] = fn
+        st.session_state['ln'] = ln
+        st.rerun()
+
+if "fn" not in st.session_state or "ln" not in st.session_state:
+    if st.button('sign in'):
+        login()
+else:
+    f"You are logged in as {st.session_state['fn']} {st.session_state['ln']}"
+
+
 # Define the pages
 main_page = st.Page("pages/main_page.py", title="Select experiment")
 page_2 = st.Page("pages/create_exp.py", title="Create new experiment")

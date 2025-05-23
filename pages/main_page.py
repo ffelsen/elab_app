@@ -14,11 +14,16 @@ st.title ("eLabFTW Log")
 st.header('Select a notebook entry')
 names, ids, exps = get_experiments(st.session_state.api_client)
 
-
-exp_name = st.selectbox('Experiment title:', names, index=0)
-exp_id = ids[names.index(exp_name)]
-
-st.session_state['exp_name'] = exp_name
-st.session_state['exp_id'] = exp_id
-
-st.link_button('Open eLabFTW entry', url ='https://elabftw-qa-2024.zit.ph.tum.de/experiments.php?mode=view&id=%i'%exp_id)
+if names == []:
+    st.write('No experiments available. Create a new experiment first!')
+else:
+    exp_name = st.selectbox('Experiment title:', names, index=0)
+    exp_id = ids[names.index(exp_name)]
+    
+    st.session_state['exp_name'] = exp_name
+    st.session_state['exp_id'] = exp_id
+    
+    st.link_button('Open eLabFTW entry', url ='https://elabftw-qa-2024.zit.ph.tum.de/experiments.php?mode=view&id=%i'%exp_id)
+    exp = exps[names.index(exp_name)]
+    st.markdown(get_exp_info(st.session_state.api_client, exp))
+    st.html(exp.body)

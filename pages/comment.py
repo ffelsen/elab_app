@@ -18,7 +18,7 @@ st.title ("eLabFTW Log")
 st.header('Add a comment to the notebook')
 
 
-content = st.text_input('Comment:', key='text')
+content = st.text_area('Comment:', key='text')
 
 st.button('Clear text', on_click=clear_text)
 if st.button('Submit'):
