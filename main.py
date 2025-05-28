@@ -40,15 +40,25 @@ def login():
     st.write("Please type your name here:")
     fn = st.text_input('first name', 'Test')
     ln = st.text_input('last name', 'Account')
+    if fn:
+        try:
+            tids, teams = get_teams(st.session_state.api_client, get_user_id(st.session_state.api_client, fn, ln))
+            team = st.selectbox('Team', teams, index=0)
+        except:
+            st.write('Please select valid user')
     if st.button("login"):
         st.session_state['fn'] = fn
         st.session_state['ln'] = ln
+        st.session_state['team_id'] = tids[teams.index(team)]
+        st.session_state['team'] = team
         st.rerun()
+    
+
 
 if "fn" not in st.session_state or "ln" not in st.session_state:
     login()
 else:
-    f"You are logged in as {st.session_state['fn']} {st.session_state['ln']}"
+    f"You are logged in as {st.session_state['fn']} {st.session_state['ln']} in Team {st.session_state['team']}"
 
 
 # Define the pages

@@ -202,8 +202,8 @@ def get_user_id(api_client, fn, ln):
         print('User %s %s does not exist!'%(fn,ln))
         return None
 
-def get_team_id(api_client, userid):
-    """get the id of team the current user 
+def get_teams(api_client, userid):
+    """get the ids and names of teams the current user 
     is assigned to 
     
     Keyword arguments:
@@ -211,13 +211,14 @@ def get_team_id(api_client, userid):
     userid -- id of the user
      
     Returns:
-    u.teams[0].id -- id of the team 
+    [t.id for t in u.teams] -- ids of the teams 
+    [t.name for t in u.teams] -- names of the teams 
     """
     uapi = elabapi_python.UsersApi(api_client)
     u = uapi.read_user(userid)
-    return u.teams[0].id # does currently not support multi-team-assignments!
+    return [t.id for t in u.teams], [t.name for t in u.teams] 
 
-def get_categories(api_client, fn, ln):
+def get_categories(api_client, team_id):
     """get all experiment categories available to 
     a user from name
     
@@ -231,8 +232,6 @@ def get_categories(api_client, fn, ln):
     ids -- ids of the categories
     colors -- colors assigned to the categories 
     """
-
-    team_id = get_team_id(api_client, get_user_id(api_client, fn,ln))
     
     eapi = elabapi_python.ExperimentsCategoriesApi(api_client)
     cats = eapi.read_team_experiments_categories(team_id)

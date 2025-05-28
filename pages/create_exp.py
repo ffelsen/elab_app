@@ -18,7 +18,7 @@ def clear_text():
 st.title ("eLabFTW Log")
 
 st.header('Create a new experiment')
-cats,ids,colors = get_categories(st.session_state.api_client, st.session_state.fn, st.session_state.ln)
+cats,ids,colors = get_categories(st.session_state.api_client, st.session_state.team_id)
 cat = st.selectbox('Category', cats, index=0)
 
 if cat == None:
