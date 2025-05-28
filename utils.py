@@ -84,7 +84,10 @@ def upload_image(api_client, exp_id, path):
     path -- path of the image file to upload (str)
     """
     uploadsApi = elabapi_python.UploadsApi(api_client)
-    uploadsApi.post_upload('experiments', exp_id, file=path, comment='Uploaded with APIv2')
+
+    img = Image.open(path)
+    size = img.size
+    uploadsApi.post_upload('experiments', exp_id, file=path, comment='%i:%i'%size)
     return True
 
 def get_uploads(api_client, exp_id):
@@ -104,7 +107,7 @@ def get_uploads(api_client, exp_id):
     names = [up.real_name for up in upls]
     return names, upls
 
-def get_image_content(upl, width=141, height=171):
+def get_image_content(upl, width=False, height=False):
     """convert uploaded image to html content 
     for the entry
     
@@ -119,6 +122,9 @@ def get_image_content(upl, width=141, height=171):
     fn = upl.real_name
     ln = upl.long_name
     s = upl.storage
+    if width == False or height == False:
+        width, height = [int(i) for i in upl.comment.split(':')]
+    
     src="app/download.php?name=%s&amp;f=%s&amp;storage=%i"%(fn,ln,s)
     cont = '<p><img src="%s" width="%i" height="%i" ></p>'%(src, width, height)
     return cont

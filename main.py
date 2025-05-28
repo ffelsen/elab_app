@@ -38,16 +38,15 @@ st.image("content/e-conversion_logo.png")
 @st.dialog("Login")
 def login():
     st.write("Please type your name here:")
-    fn = st.text_input('first name')
-    ln = st.text_input('last name')
+    fn = st.text_input('first name', 'Test')
+    ln = st.text_input('last name', 'Account')
     if st.button("login"):
         st.session_state['fn'] = fn
         st.session_state['ln'] = ln
         st.rerun()
 
 if "fn" not in st.session_state or "ln" not in st.session_state:
-    if st.button('sign in'):
-        login()
+    login()
 else:
     f"You are logged in as {st.session_state['fn']} {st.session_state['ln']}"
 
