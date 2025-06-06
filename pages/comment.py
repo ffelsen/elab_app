@@ -9,6 +9,7 @@ from warnings import filterwarnings
 import datetime
 filterwarnings('ignore')
 from utils import *
+import templates
 
 def clear_text(): 
   st.session_state["text"] = '' 
@@ -37,10 +38,11 @@ with exp_chat:
 
 
 exp_temp = st.expander("Template mode")
-templates = ['Choose a template',] + [i for i in locals().keys() if 'template' in i]
+temps = ['Choose a template',] + [i for i in dir(templates) if 'template' in i]
 with exp_temp:     
-    temp = st.selectbox('Choose a template', templates, key='selection')
+    temp = st.selectbox('Choose a template', temps, key='selection')
     if temp != 'Choose a template':
-        locals()[temp]()
-    container = st.container(border=True)
-    container.write('\n\n'.join(st.session_state["chat_history"]))
+        getattr(templates, temp)()
+    if len(st.session_state['chat_history']) != 0:
+        container = st.container(border=True)
+        container.write('\n\n'.join(st.session_state["chat_history"]))
