@@ -26,5 +26,5 @@ else:
     st.link_button('Open eLabFTW entry', url ='https://elabftw-qa-2024.zit.ph.tum.de/experiments.php?mode=view&id=%i'%exp_id)
     exp = exps[names.index(exp_name)]
     st.markdown(get_exp_info(st.session_state.api_client, exp))
-    container = st.container(border=True)
-    container.html(exp.body)
+    #container = st.container(border=True)
+    #container.html(exp.body)
