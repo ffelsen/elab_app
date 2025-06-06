@@ -26,6 +26,7 @@ api_client.set_default_header(header_name='Authorization', header_value=key)
 
 st.session_state['api_client'] = api_client
 
+st.session_state['prompt'] = None
 
 st.set_page_config(
     page_title="ElabFTW Logger",
