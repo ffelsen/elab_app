@@ -1,10 +1,12 @@
 digi.key
 temp/*
+.venv/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
 
 # C extensions
 *.so
@@ -175,3 +177,35 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# Streamlit specific
+.streamlit/secrets.toml
+.streamlit/config.toml
+
+# Audio files (unless you want to track them)
+*.wav
+*.mp3
+*.m4a
+*.flac
+*.ogg
+
+# Temporary transcription files
+transcripts/
+audio_temp/
+
+# eLabFTW API keys and secrets
+*.key
+config.json
+secrets.json
+
+# Model cache (Whisper downloads large models)
+models/
+.cache/whisper/
+
+# Logs
+*.log
+logs/
+
+# OS specific
+.DS_Store
+Thumbs.db

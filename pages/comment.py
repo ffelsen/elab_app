@@ -10,6 +10,7 @@ import datetime
 filterwarnings('ignore')
 from utils import *
 import templates
+from pages.create_transcript import transcription_widget
 
 def clear_text(): 
   st.session_state["text"] = '' 
@@ -18,6 +19,25 @@ def clear_text():
 st.title ("eLabFTW Log")
 
 st.header('Add a comment to the notebook')
+
+def chat_history_callback(transcript_text, include_timestamps):
+    """Callback function to add transcript to chat history and eLabFTW"""
+    if "chat_history" not in st.session_state:
+        st.session_state["chat_history"] = []
+    
+    # Add transcript to eLabFTW experiment
+    append_to_experiment(st.session_state.api_client, st.session_state.exp_id, transcript_text)
+    
+    # Format message for chat history
+    if include_timestamps:
+        message = f"Added timestamped transcription to experiment {st.session_state.exp_name}: {transcript_text[:100]}..."
+    else:
+        message = f"Added transcription to experiment {st.session_state.exp_name}: {transcript_text[:100]}..."
+    
+    st.session_state["chat_history"].append(message)
+    if len(st.session_state["chat_history"]) > 10: 
+        st.session_state["chat_history"] = st.session_state["chat_history"][-10:]
+
 
 if "chat_history" not in st.session_state:
     st.session_state["chat_history"] = []
@@ -46,3 +66,17 @@ with exp_temp:
     if len(st.session_state['chat_history']) != 0:
         container = st.container(border=True)
         container.write('\n\n'.join(st.session_state["chat_history"]))
+
+
+exp_transcriber = st.expander("Voice Transcription")
+
+with exp_transcriber:
+    
+    # Use the transcription widget with callback
+    transcription_widget(
+        key_suffix="_comment", 
+        on_upload_callback=chat_history_callback, 
+        compact_mode=True
+    )
+
+
