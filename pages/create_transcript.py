@@ -2,6 +2,7 @@ import os
 import subprocess
 import sys
 import time
+import json
 from pathlib import Path
 from datetime import datetime
 
@@ -22,6 +23,61 @@ def send_stop_signal():
     with Path("stop_signal.txt").open("w") as f:
         print("Sending stop signal")
         f.write("stop")
+
+
+def save_default_microphone(mic_tuple, key_suffix=""):
+    """Save default microphone setting to local file"""
+    try:
+        # Ensure temp directory exists
+        temp_dir = Path("temp")
+        temp_dir.mkdir(exist_ok=True)
+        
+        # Load existing settings or create new
+        settings_file = temp_dir / "default_microphone.json"
+        settings = {}
+        
+        if settings_file.exists():
+            try:
+                with settings_file.open("r", encoding="utf-8") as f:
+                    settings = json.load(f)
+            except (json.JSONDecodeError, Exception):
+                settings = {}
+        
+        # Save microphone setting with key_suffix for different contexts
+        settings[f"default_mic{key_suffix}"] = {
+            "mic_id": mic_tuple[0],
+            "mic_name": mic_tuple[1],
+            "saved_at": datetime.now().isoformat()
+        }
+        
+        # Write settings back to file
+        with settings_file.open("w", encoding="utf-8") as f:
+            json.dump(settings, f, indent=2)
+            
+        return True
+    except Exception as e:
+        # Silently handle errors to avoid breaking the app
+        return False
+
+
+def load_default_microphone(key_suffix=""):
+    """Load default microphone setting from local file"""
+    try:
+        settings_file = Path("temp/default_microphone.json")
+        if not settings_file.exists():
+            return None
+            
+        with settings_file.open("r", encoding="utf-8") as f:
+            settings = json.load(f)
+            
+        setting_key = f"default_mic{key_suffix}"
+        if setting_key in settings:
+            mic_data = settings[setting_key]
+            return (mic_data["mic_id"], mic_data["mic_name"])
+            
+        return None
+    except Exception:
+        return None
 
 
 def start_transcription(model, energy_threshold, record_timeout, phrase_timeout, mic_index):
@@ -157,26 +213,23 @@ def format_timestamped_content(timestamped_text, show_relative=False):
                     
                     # Create styled timestamp line with optional relative time
                     if show_relative:
-                        formatted_line = f"""
-                        <div style="margin-bottom: 8px;">
+                        formatted_line = f"""<div style="margin-bottom: 8px;">
                             <span style="color: #0066cc; font-weight: bold; font-size: 12px;">[{real_time}]</span>
                             <span style="color: #666; font-size: 11px; margin-left: 5px;">[{relative_time}]</span>
-                            <span style="margin-left: 10px;">{text}</span>
-                        </div>
-                        """
+                            <span style="margin-left: 10px; color: #ffffff;">{text}</span>
+                        </div>"""
                     else:
-                        formatted_line = f"""
-                        <div style="margin-bottom: 8px;">
+                        formatted_line = f"""<div style="margin-bottom: 8px;">
                             <span style="color: #0066cc; font-weight: bold; font-size: 12px;">[{real_time}]</span>
-                            <span style="margin-left: 10px;">{text}</span>
-                        </div>
-                        """
+                            <span style="margin-left: 10px; color: #ffffff;">{text}</span>
+                        </div>"""
                     formatted_lines.append(formatted_line)
                 else:
-                    formatted_lines.append(f"<div style='margin-bottom: 5px;'>{line}</div>")
+                    formatted_lines.append(f"<div style='margin-bottom: 5px; color: #ffffff;'>{line}</div>")
             except:
-                formatted_lines.append(f"<div style='margin-bottom: 5px;'>{line}</div>")
+                formatted_lines.append(f"<div style='margin-bottom: 5px; color: #ffffff;'>{line}</div>")
     
+    # Return properly wrapped content without extra closing tags
     return ''.join(formatted_lines)
 
 
@@ -260,21 +313,12 @@ def upload_to_experiment(transcript_content, include_timestamps=False):
             if include_timestamps and transcript_content.strip():
                 # Check if content already has timestamps
                 if '[' in transcript_content and ']' in transcript_content:
-                    formatted_transcript = f"""**Transcription with Timestamps - {timestamp_str}**
-
-{transcript_content}
-
----
-*Transcription captured with real-time and relative timestamps*"""
+                    formatted_transcript = transcript_content
                 else:
                     # Fallback to plain text
-                    formatted_transcript = f"""**Transcription - {timestamp_str}**
-
-{transcript_content}"""
+                    formatted_transcript = transcript_content
             else:
-                formatted_transcript = f"""**Transcription - {timestamp_str}**
-
-{transcript_content}"""
+                formatted_transcript = transcript_content
             
             # Use the append_to_experiment function
             append_to_experiment(st.session_state.api_client, st.session_state.exp_id, formatted_transcript)
@@ -295,6 +339,11 @@ def transcription_widget(key_suffix="", on_upload_callback=None, compact_mode=Fa
         on_upload_callback: Function to call after successful upload (receives transcript_text, include_timestamps)
         compact_mode: If True, shows simplified interface
     """
+    # Ensure temp directory exists for transcription files
+    temp_dir = Path("temp")
+    if not temp_dir.exists():
+        temp_dir.mkdir(exist_ok=True)
+    
     import speech_recognition as sr
     
     # Initialize transcription states with suffix
@@ -338,11 +387,83 @@ def transcription_widget(key_suffix="", on_upload_callback=None, compact_mode=Fa
         
         # Microphone selection
         try:
-            mics = [(i, name) for i, name in enumerate(sr.Microphone.list_microphone_names())]
-            mic_index = st.selectbox("Microphone", options=mics, format_func=lambda x: x[1], key=f"trans_mic{key_suffix}")[0]
-        except:
+            # Get all microphone names and filter them
+            all_mics = sr.Microphone.list_microphone_names()
+            
+            # Filter out speakers and duplicates
+            filtered_mics = []
+            seen_names = set()
+            
+            for i, name in enumerate(all_mics):
+                # Convert to lowercase for filtering
+                name_lower = name.lower()
+                
+                # Skip speakers and output devices
+                if any(keyword in name_lower for keyword in ['speaker', 'output', 'playback', 'hdmi', 'display','lautsprecher', 'ausgabe', 'wiedergabe', 'hdmi', 'anzeige', 'kopfhörer']):
+                    continue
+                    
+                # Skip duplicates (case-insensitive)
+                if name_lower not in seen_names:
+                    seen_names.add(name_lower)
+                    filtered_mics.append((i, name))
+            
+            # If no microphones found, use the original list as fallback
+            if not filtered_mics:
+                filtered_mics = [(i, name) for i, name in enumerate(all_mics)]
+            
+            # Check for saved default microphone and auto-select if available
+            default_mic_key = f"default_microphone{key_suffix}"
+            default_index = 0
+            saved_default = None
+            
+            # First, try to load from local file (persistent storage)
+            file_default = load_default_microphone(key_suffix)
+            if file_default:
+                saved_default = file_default
+                # Also update session state for consistency
+                st.session_state[default_mic_key] = file_default
+            elif default_mic_key in st.session_state:
+                # Fallback to session state if file doesn't exist
+                saved_default = st.session_state[default_mic_key]
+            
+            # Try to find the saved default in current filtered list
+            if saved_default:
+                for idx, (mic_id, mic_name) in enumerate(filtered_mics):
+                    if mic_name == saved_default[1]:  # Match by name
+                        default_index = idx
+                        break
+            
+            # Microphone selection with full-width dropdown and button below
+            selected_mic = st.selectbox("Microphone", options=filtered_mics, 
+                                      index=default_index,
+                                      format_func=lambda x: x[1], 
+                                      key=f"trans_mic{key_suffix}")
+            mic_index = selected_mic[0]
+            
+            if st.button("📌 Set as Default", key=f"set_default_mic{key_suffix}", 
+                       help="Set this microphone as default"):
+                # Save to both session state and local file
+                st.session_state[default_mic_key] = selected_mic
+                save_success = save_default_microphone(selected_mic, key_suffix)
+                
+                if save_success:
+                    st.success(f"✅ Default set and saved!")
+                else:
+                    st.success(f"✅ Default set for this session!")
+                st.rerun()
+            
+            # Show current default if set
+            if default_mic_key in st.session_state:
+                default_mic = st.session_state[default_mic_key]
+                # Check if this was loaded from file
+                if file_default and file_default == default_mic:
+                    st.caption(f"📌 Default (saved): {default_mic[1]}")
+                else:
+                    st.caption(f"📌 Default: {default_mic[1]}")
+                
+        except Exception as e:
             mic_index = 0
-            st.warning("⚠️ Could not detect microphones")
+            st.warning("⚠️ Could not detect microphones - using default")
         
         if not compact_mode:
             energy_threshold = st.slider("Energy Threshold", min_value=100, max_value=500, value=300, key=f"energy{key_suffix}")
@@ -438,14 +559,8 @@ def transcription_widget(key_suffix="", on_upload_callback=None, compact_mode=Fa
         else:
             st.info("🎤 Transcription starting...")
     
-    # Real-time transcription display - same as main app
+    # Real-time transcription display
     if st.session_state[transcribing_key]:
-        if st.session_state[model_ready_key]:
-            st.info("🎤 Transcription is running... Speak into your microphone.")
-        elif st.session_state[model_loading_key]:
-            st.warning("⏳ Loading Whisper model... Please wait, this may take up to 30 seconds.")
-        else:
-            st.info("🎤 Transcription starting...")
         
         # Control section
         col1, col2 = st.columns([1, 2])

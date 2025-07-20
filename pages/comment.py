@@ -25,9 +25,6 @@ def chat_history_callback(transcript_text, include_timestamps):
     if "chat_history" not in st.session_state:
         st.session_state["chat_history"] = []
     
-    # Add transcript to eLabFTW experiment
-    append_to_experiment(st.session_state.api_client, st.session_state.exp_id, transcript_text)
-    
     # Format message for chat history
     if include_timestamps:
         message = f"Added timestamped transcription to experiment {st.session_state.exp_name}: {transcript_text[:100]}..."
