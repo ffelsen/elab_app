@@ -9,7 +9,44 @@ from warnings import filterwarnings
 import datetime
 from PIL import Image
 from uuid import uuid4
-from utils import *
+import os
+import requests
+from elabapi_python import UploadsApi
+
+def get_linked_resources(api_client, exp_id):
+    api_key  = api_client.configuration.api_key['api_key']
+    base_url = api_client.configuration.host.rstrip('/')
+    url      = f"{base_url}/experiments/{exp_id}/items_links"
+    headers  = {"Authorization": api_key}
+
+    response = requests.get(url, headers=headers, verify=False)
+    if response.status_code != 200:
+        raise Exception(f"API error {response.status_code}: {response.text}")
+
+    linked_items = response.json()
+    resources = []
+    for item in linked_items:
+        resources.append({
+            'id':         item.get('itemid'),
+            'title':      item.get('title'),
+            'category':   item.get('category_title'),
+            'created_at': item.get('created_at'),
+            # <-- hier:
+            'body':       item.get('body') or ""
+        })
+
+    return resources
+
+def get_resources(api_client, team_id):
+    headers = {"Authorization": f"Bearer {api_client.configuration.access_token}"}
+    url = f"{api_client.configuration.host}/api/v1/team/{team_id}/resources"
+
+    response = requests.get(url, headers=headers)
+    response.raise_for_status()
+    data = response.json()
+    
+    # Struktur: {"id": ..., "name": ..., "category": ...}
+    return data
 
 def append_to_experiment_old(api_client, exp_id, content):
     """Append a time stamped comment to an ElabFTW entry
@@ -47,7 +84,8 @@ def append_to_experiment(api_client, exp_id, content):
     content -- content to add to the line (str)
     """
     
-    now = datetime.datetime.now()
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
     content = content.replace('\n','<br>')
  
     # get current content of the experiment
@@ -76,19 +114,25 @@ def append_to_experiment(api_client, exp_id, content):
     return True
 
 def upload_image(api_client, exp_id, path):
-    """upload image to an experiment entry
-
-    Keyword arguments:
-    api_client -- elabapi_python api_client instance
-    exp_id -- id of the elab entry of the experiment
-    path -- path of the image file to upload (str)
+    """Upload image to experiment and return clickable link
+    
+    Args:
+        api_client: elabapi_python api_client instance
+        exp_id: ID of the experiment entry
+        path: Path to the image file
+    
+    Returns:
+        bool: True if successful
     """
-    uploadsApi = elabapi_python.UploadsApi(api_client)
-
-    img = Image.open(path)
-    size = img.size
-    uploadsApi.post_upload('experiments', exp_id, file=path, comment='%i:%i'%size)
-    return True
+    try:
+        uploadsApi = elabapi_python.UploadsApi(api_client)
+        img = Image.open(path)
+        size = img.size
+        uploadsApi.post_upload('experiments', exp_id, file=path, comment='%i:%i'%size)
+        return True
+    except Exception as e:
+        print(f"Error uploading image: {e}")
+        return False
 
 def get_uploads(api_client, exp_id):
     """read all uploads connected to an experiment
@@ -129,19 +173,46 @@ def get_image_content(upl, width=False, height=False):
     cont = '<p><img src="%s" width="%i" height="%i" ></p>'%(src, width, height)
     return cont
 
-def insert_image(api_client, exp_id, name):
-    """insert image into experiment entry
+def insert_image(api_client, exp_id, filename):
+    """Insert clickable image link with filename into experiment"""
+    try:
+        # Uploads zum Experiment holen
+        _, uploads = get_uploads(api_client, exp_id)
 
-    Keyword arguments:
-    api_client -- elabapi_python api_client instance
-    exp_id -- id of the elab entry of the experiment
-    name -- name of the uploaded image
-    """
-    names, upls = get_uploads(api_client, exp_id)
-    ind = names.index(name)
-    cont = get_image_content(upls[ind])
-    append_to_experiment(api_client, exp_id, cont)
-    return True
+        # Upload mit übereinstimmendem Dateinamen finden
+        match = next((u for u in uploads if u.real_name == filename), None)
+        if not match:
+            print(f"Image {filename} not found among uploads.")
+            return False
+
+        # Bild-Link korrekt erzeugen
+        src = f"app/download.php?name={match.real_name}&amp;f={match.long_name}&amp;storage={match.storage}"
+
+        # Sichtbaren Button mit Dateinamen anzeigen
+        image_link = f"""
+        <div style="margin:10px 0;">
+            <a href="{src}" target="_blank" style="text-decoration:none;">
+                <button style="
+                    background-color:#4a6ea9;
+                    color:white;
+                    padding:8px 15px;
+                    border:none;
+                    border-radius:4px;
+                    cursor:pointer;
+                    font-size:14px;">
+                    📷 View Image: {match.real_name}
+                </button>
+            </a>
+        </div>
+        """
+
+        # In ElabFTW einfügen
+        append_to_experiment(api_client, exp_id, image_link)
+        return True
+
+    except Exception as e:
+        print(f"Error inserting image link: {e}")
+        return False
 
 def get_experiments(api_client):
     """read all experiments
@@ -162,25 +233,38 @@ def get_experiments(api_client):
     ids = [exp.id for exp in exps]
     return names, ids, exps
 
-def create_experiment(api_client, name, comment='', catid = 0):
-    """create a new experiment entry in elab
+def create_experiment(api_client, name, comment='', catid=None):
+    """
+    Create a new experiment entry in eLabFTW
 
     Keyword arguments:
     api_client -- elabapi_python api_client instance
     name -- name of the new experiment 
     comment -- comment to add in the first line of the new entry
-    catid -- id of the experiment category
+    catid -- id of the experiment category (None = not set)
     """
     experimentsApi = elabapi_python.ExperimentsApi(api_client)
+    
+    # Create empty experiment
     experimentsApi.post_experiment()
+    
+    # Get latest "Untitled" experiment
     names, ids, exps = get_experiments(api_client)
     exp_id = ids[names.index('Untitled')]
-    experimentsApi.patch_experiment(exp_id, body={'title':name})
-    if comment != '':
-        experimentsApi.patch_experiment(exp_id, body={'body':comment})
-    experimentsApi.patch_experiment(exp_id, body={'category':catid})
+    
+    # Set title
+    experimentsApi.patch_experiment(exp_id, body={'title': name})
+    
+    # Set optional comment
+    if comment:
+        experimentsApi.patch_experiment(exp_id, body={'body': comment})
+    
+    # Set category only if specified
+    if catid is not None:
+        experimentsApi.patch_experiment(exp_id, body={'category': catid})
 
     return True
+
 
 def get_user_id(api_client, fn, ln):
     """get the id of the current user from name
@@ -273,6 +357,12 @@ def get_exp_info(api_client, exp):
     Last modified by %s on %s'''%(exp.category_title, exp.fullname, 
                                   exp.created_at, get_name(api_client, exp.lastchangeby), 
                                   exp.modified_at)
-    
     return info
 
+def link_resource_to_exp(api_client, exp_id, res_id):
+    api_client.call_api(
+        f'/api/v1/experiment/{exp_id}/resource/{res_id}',
+        'POST',
+        auth_settings=['apiKeyAuth'],
+        response_type=None
+    )
