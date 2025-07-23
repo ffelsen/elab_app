@@ -4,6 +4,7 @@ import requests
 from elabapi_python import ExperimentsApi
 from bs4 import BeautifulSoup
 from warnings import filterwarnings
+from inputparsing import get_index
 filterwarnings('ignore')
 
 ## have to have a team
@@ -40,6 +41,9 @@ for i in range(0,len(ids)):
 exp_titles = [f"{name} (ID: {id})" for name, id in zip(names, ids)]
 new_id = -1
 selected_title = st.selectbox( "Select Experiment or create New:", exp_titles, index=idx)
+idx = get_index(exp_titles,selected_title)
+if idx!=-1:
+    st.session_state["exp_name"] = names[idx]
 
 ## or create new experiment
 cat = None
@@ -70,6 +74,71 @@ if experiment.body!=None:
     body_soup = BeautifulSoup(experiment.body, 'html.parser')
 else:
     body_soup = BeautifulSoup("", 'html.parser')
+
+## update experiment with path
+def update_exp_path(body_soup, path_str):
+    resc_div = body_soup.find('div', class_='resc')
+    if not resc_div:
+        resc_div = body_soup.new_tag("div", attrs={'class': 'resc'})
+        resc_h = body_soup.new_tag("h5")
+        strong = body_soup.new_tag("strong")
+        strong.string = "Resources:"
+        resc_h.append(strong)
+        resc_div.append(resc_h)
+        resc_ul = body_soup.new_tag("ul")
+        resc_div.append(resc_ul)
+        first_table = body_soup.find('table')
+        if first_table:
+            first_table.insert_before(resc_div)
+        else:
+            body_soup.append(resc_div)
+
+    resc_ul = resc_div.find('ul')
+    if not resc_ul:
+        # Try to create <ul> if it doesn't exist
+        resc_h = resc_div.find(['h3', 'h4', 'h5'])
+        if not resc_h:
+            resc_h = body_soup.new_tag("h5")
+            strong = body_soup.new_tag("strong")
+            strong.string = "Resources:"
+            resc_h.append(strong)
+            resc_div.insert(0, resc_h)
+        resc_ul = body_soup.new_tag("ul")
+        resc_h.insert_after(resc_ul)
+
+    # New <li> element to insert
+    new_li = body_soup.new_tag('li')
+    strong_tag = body_soup.new_tag('strong')
+    strong_tag.string = 'Linked Path'
+    div_tag = body_soup.new_tag('div', attrs={'class': 'path', 'style': 'display:inline;'})
+    div_tag.string = path_str
+    new_li.append(strong_tag)
+    new_li.append(': ')
+    new_li.append(div_tag)
+
+    # Look for existing path entry
+    existing_div = resc_ul.find('div', class_='path')
+    if existing_div:
+        existing_li = existing_div.find_parent('li')
+        if existing_li:
+            existing_li.replace_with(new_li)
+    else:
+        resc_ul.append(new_li)
+    response = exp_client.patch_experiment(st.session_state["exp_id"], body={ 'body': str(body_soup) })
+        
+## input new path
+import os
+col_path, col_subpath = st.columns([8,2])
+with col_path:
+    st.session_state.file_path = st.text_input("Path Linked To Experiment:", value=st.session_state.file_path, placeholder="e.g., C:/Users/.../Data/MyExperiment/")
+with col_subpath:
+    st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
+    if st.button("Update",key="sub_path"):
+        if st.session_state.file_path!="":
+            path = os.path.expanduser(st.session_state.file_path)
+            os.makedirs(path, exist_ok=True)
+            update_exp_path(body_soup, st.session_state.file_path)
+            st.rerun()
 
 ## title
 st.subheader( experiment.title )

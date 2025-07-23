@@ -22,6 +22,9 @@ def init_session_state():
         "api_key": "",
         "host_domain": "",
         "sample_id": None,
+        "file_name": "",
+        "file_path": "",
+        "exp_name": "",
     }
     for key, value in defaults.items():
         if key not in st.session_state:

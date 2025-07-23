@@ -118,7 +118,7 @@ class GasComposer:
             composition_line = f"{', '.join(composition_line)}"
         
         with st.expander(f"Set Gas Composition:\u00A0 \u00A0 {composition_line} (old)", expanded=True):
-            col_gas, col_pre, col_del, col_add = st.columns([4,5,3,3])
+            col_gas, col_pre, col_del, col_add = st.columns([4,4,3,3])
             with col_gas:
                 current_gas = st.selectbox("Select Gas", self.options_gases, key=self.key+"_gas")
             with col_pre:
