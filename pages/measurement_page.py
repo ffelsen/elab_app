@@ -411,12 +411,14 @@ VALID_ORBITALS = {
 ## mandatory fields { 'title':None, 'typ':None, 'excite':None, 'spot':None, 'power':0.0, 'voltage':0.0, 'corelvls':[], 'gases':{}, 'position':None, 'conditions':[], 'note':None }
 col_exc, col_spot = st.columns(2)
 with col_exc:
-    excite = st.selectbox("Excitation Energy:", excitation_energies, key="xray_exc")
+    old_idx = get_index(excitation_energies,st.session_state["selected_mess"]["excite"], dflt=0)
+    excite = st.selectbox("Excitation Energy:", excitation_energies, index=old_idx, key="xray_exc")
     st.session_state["selected_mess"]["excite"] = excite
 with col_spot:
     idx = get_index(excitation_energies,excite)
     if idx>=0:
-        spot = st.selectbox("Spot:", spot_settings[idx], key="xray_spot")
+        old_idx = get_index(spot_settings[idx],st.session_state["selected_mess"]["spot"], dflt=0)
+        spot = st.selectbox("Spot:", spot_settings[idx], index=old_idx, key="xray_spot")
         st.session_state["selected_mess"]["spot"] = spot
     else:
         spot = st.selectbox("Spot:", [], key="xray_spot")
@@ -424,10 +426,10 @@ with col_spot:
 
 col_pow, col_vol = st.columns(2)
 with col_pow:
-    power = float_text_input("xray_pow", "Power [W]", default="0.0")
+    power = float_text_input("xray_pow", "Power [W]", default=st.session_state["selected_mess"]["power"])
     st.session_state["selected_mess"]["power"] = power
 with col_vol:
-    voltage = float_text_input("xray_vol", "Voltage [kV]", default="0.0")
+    voltage = float_text_input("xray_vol", "Voltage [kV]", default=st.session_state["selected_mess"]["voltage"])
     st.session_state["selected_mess"]["voltage"] = voltage
 
 ## Reference Measurement typ specific
@@ -439,17 +441,19 @@ elif selected_typi!=-1:
 if mess_typ=="mess_ref":
     col_cps, col_ref = st.columns(2)
     with col_cps:
-        max_cps = float_text_input("max_cps", "Max. CPS", default="0.0")
+        max_cps = float_text_input("max_cps", "Max. CPS", default=st.session_state["selected_mess"]["maxcps"])
         st.session_state["selected_mess"]["maxcps"] = max_cps
     with col_ref:
-        ref_peak = st.text_input("Reference Peak", placeholder="e.g., O₂ at 525 eV")
-        st.session_state["selected_mess"]["ref_peak"] = ref_peak
+        ref_peak = st.text_input("Reference Peak", placeholder="e.g., O₂ at 525 eV", value=st.session_state["selected_mess"]["refpeak"])
+        st.session_state["selected_mess"]["refpeak"] = ref_peak
 else:
     corelvls = CoreLevelsCondition( "corelvls", VALID_ORBITALS)
+    corelvls.set_data(st.session_state["selected_mess"]["corelvls"])
     corelvls.render()
     st.session_state["selected_mess"]["corelvls"] = corelvls.get_data()
     
 xgases = GasComposer(key=f"xgases")
+xgases.set_data(st.session_state["selected_mess"]["gases"])
 xgases.render()
 st.session_state["selected_mess"]["gases"] = xgases.get_data()
 
