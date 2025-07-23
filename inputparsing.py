@@ -85,14 +85,14 @@ def duration_text_input(key, label, default="0 min", label_visibility="visible",
     user_input = st.text_input(label, value=st.session_state[key], label_visibility=label_visibility, key=key + "_input",on_change=on_change)
     st.session_state[key] = t_time_str(parse_duration(user_input))
     return st.session_state[key]
-    
+        
 def float_text_input(key, label, default="0.0", label_visibility="visible", on_change=None):
     if key not in st.session_state:
         st.session_state[key] = default
     user_input = st.text_input(label, value=st.session_state[key], label_visibility=label_visibility, key=key + "_input", on_change=on_change)
     try:
         val = float(user_input)
-        st.session_state[key] = user_input
+        st.session_state[key] = str(val)
         return val
     except ValueError:
         return default
@@ -125,7 +125,7 @@ class GasComposer:
                 current_pre = float_text_input(self.key+"_pre", "part. Pressure [mbar]", default="0.0")
             with col_del:
                 st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
-                if st.button("❌ Delete", key=f"del_{self.key}"):
+                if st.button("➖ Remove", key=f"del_{self.key}"):
                     st.session_state[self.key].pop(current_gas, None)
                     st.rerun()
             with col_add:
@@ -262,7 +262,7 @@ class PhysicalQuantityInput:
 
 class IonEnergyCondition:
     def __init__(self, key, label="Ion Energy:"):
-        self.key = f"comment_{key}"
+        self.key = f"ion_{key}"
         self.label = label
         if self.key not in st.session_state:
             st.session_state[self.key] = { 'U':0.0, 'I':0.0 }
@@ -320,4 +320,44 @@ class DurationCondition:
     def get_data(self):
         return st.session_state[self.key]
 
-
+class CoreLevelsCondition:
+    def __init__(self, key, VALID_ORBITALS):
+        self.key = f"corelvls_{key}"
+        self.VALID_ORBITALS = VALID_ORBITALS
+        if self.key not in st.session_state:
+            st.session_state[self.key] = []
+            
+    def on_change(self):
+        st.session_state.update({self.key+"_orb": self.VALID_ORBITALS[st.session_state.el_select][0]})
+            
+    def render(self):
+        composition_line = ", ".join(st.session_state[self.key])
+        
+        with st.expander(f"Core Levels:\u00A0 \u00A0 {composition_line} (old)", expanded=True):
+            col_el, col_orb, col_del, col_add = st.columns([3,3,2,2])
+            with col_el:
+                el = st.selectbox("Core Levels Element", options=list(self.VALID_ORBITALS.keys()), key=self.key+"_el", on_change=lambda: self.on_change)
+            with col_orb:
+                orb = st.selectbox("Core Levels Orbital", options=self.VALID_ORBITALS[el], key=self.key+"_orb")
+            with col_del:
+                st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
+                if st.button("➖ Remove", key=self.key+"_del"):
+                    idx = get_index(st.session_state[self.key], f"{el} {orb}")
+                    if idx!=-1:
+                        del st.session_state[self.key][idx]
+                        st.rerun()
+            with col_add:
+                st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
+                if st.button("➕ Add", key=self.key+"_add"):
+                    if f"{el} {orb}" not in st.session_state[self.key]:
+                        st.session_state[self.key].append(f"{el} {orb}")
+                        st.rerun()
+                        
+            composition_line = ", ".join(st.session_state[self.key])      
+            st.markdown(f"**Core Levels**:\u00A0 \u00A0 {composition_line}")
+            
+    def set_data(self, data):
+        st.session_state[self.key] = data
+        
+    def get_data(self):
+        return st.session_state[self.key]

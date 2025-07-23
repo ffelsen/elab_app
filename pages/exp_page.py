@@ -74,21 +74,6 @@ else:
 ## title
 st.subheader( experiment.title )
 
-## resources
-# resc_html = "<big><b>Resources</b></big><ul>"
-# for i, items_link in enumerate(experiment.items_links):
-    # resc_html += ( f"<li>Sample {i+1}: {items_link.title}</li>" )
-# if (experiment.items_links==None):
-    # resc_html += "..."
-
-# ## get positions
-# resc_ul = body_soup.find('ul', class_='resc')
-# if resc_ul!=None:
-    # positions = [a.get_text() for a in resc_ul.find_all('a', class_='pos')]
-
-# resc_html += "</ul>"
-# st.markdown(resc_html, unsafe_allow_html=True)
-
 ## body
 st.markdown("---")
 st.markdown(experiment.body, unsafe_allow_html=True)

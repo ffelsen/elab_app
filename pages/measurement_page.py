@@ -6,6 +6,23 @@ from bs4 import BeautifulSoup
 from warnings import filterwarnings
 filterwarnings('ignore')
 
+default_mess = {
+    'title':None,
+    'typ':None,
+    'excite':None,
+    'spot':None,
+    'power':0.0,
+    'voltage':0.0,
+    'corelvls':[],
+    'gases':{},
+    'maxcps':0.0,
+    'refpeak':"",
+    'pos':None,
+    'conditions':[],
+    'note':None,
+    'num':-1
+}
+
 #### Initial Setup ####
 ## Make sure an Experiment is selected
 if not st.session_state["exp_id"]:
@@ -19,7 +36,6 @@ if not st.session_state["sample_id"]:
 ## constants etc...
 cond_classes = ['excite', 'xsource', 'spot', 'pos', 'gases', 'maxcps', 'corelvls', 'dura', 'temp', 'temp_p', 'ramp', 'comment']
 cond_names = [ "Excitation Energy", "X-Ray Source", "Beam Spot Size", "Position", "Set Gas", "Max. CPS", "Core Levels", "Duration", "Const. Temperature", "Plate Temperature", "Heating Ramp", "Comment"]
-
 #### helper functions ####
 ## get #number for new treatment step
 def get_smallest_available(nums):
@@ -35,10 +51,35 @@ def get_mess_steps(body_soup):
     steps = []
     
     for treat in treat_sections:
+        data = {
+            'title':"",
+            'typ':"",
+            'excite':"",
+            'spot':"",
+            'power':"",
+            'voltage':"",
+            'corelvls':"",
+            'gases':"",
+            'maxcps':"",
+            'refpeak':"",
+            'pos':"",
+            'conditions':[],
+            'note':"",
+            'num':-1
+        }
         typ = treat['class'][0]
-        data = {'title':"", 'typ':typ, 'num':-1, 'conditions':[], 'note':"" }
+        data["typ"] = typ
         ## get title and note
         title_tag = treat.find('div', class_='title')
+        title_tag = treat.find('div', class_='title')
+        excite_tag = treat.find('div', class_='excite')
+        spot_tag = treat.find('div', class_='spot')
+        power_tag = treat.find('div', class_='power')
+        voltage_tag = treat.find('div', class_='voltage')
+        corelvls_tag = treat.find('div', class_='corelvls')
+        maxcps_tag = treat.find('div', class_='maxcps')
+        refpeak_tag = treat.find('div', class_='refpeak')
+        pos_tag = treat.find('div', class_='pos')
         note_tag = treat.find('div', class_='note')
         if title_tag:
             data['title'] = title_tag.get_text(strip=True).rstrip(":")
@@ -46,32 +87,62 @@ def get_mess_steps(body_soup):
                 data['num'] = int(data['title'].split('#')[1].strip())
             except IndexError:
                 continue
+        if excite_tag:
+            data['excite'] = excite_tag.get_text(strip=True)
+        if spot_tag:
+            data['spot'] = spot_tag.get_text(strip=True)
+        if power_tag:
+            data['power'] = power_tag.get_text(strip=True)
+        if corelvls_tag:
+            data['corelvls'] = corelvls_tag.get_text(strip=True)
+        if maxcps_tag:
+            data['maxcps'] = maxcps_tag.get_text(strip=True)
+        if voltage_tag:
+            data['voltage'] = voltage_tag.get_text(strip=True)
+        if pos_tag:
+            data['pos'] = pos_tag.get_text(strip=True)
         if note_tag:
             data['note'] = note_tag.get_text(strip=True)
         ## get conditions [ ["temp0", "298 K"], ["gases", "..."], ... ]
+        gases_count = 0
         for div in treat.find_all('div'):
             classes_div = div.get('class', [])
             for clss in classes_div:
                 if clss in cond_classes:
                     value = div.get_text(strip=True)
-                    data['conditions'].append([clss,value])
+                    if (clss=="gases")and(gases_count==0):
+                        data['gases'] = value
+                        gases_count+=1
+                    else:
+                        data['conditions'].append([clss,value])
         steps.append(data)
     return steps
     
 ## generate new html for treatment step
 def mess_html(treat):
+    print(treat)
     html = []
     html.append(f'<div class="{treat["typ"]}">')
     html.append(f'<b><div class="title" style="display:inline;">{treat["title"]}</div>:</b>')
     html.append(f'<a>(<div class="sample" style="display:inline;">Sample {sample_ref_idx}</div>)</a>')
-
-    # list of diffrent conditions ['excite', 'xsource', 'spot', 'pos', 'gases', 'maxcps', 'corelvls', 'dura', 'temp', 'temp_p', 'ramp', 'comment']
+    
+    ## mandatory conditions
     html.append('<ul>')
+    html.append(f'<li><b>Excitation Energy</b>: <div class="excite" style="display:inline;">{treat["excite"]}</div></li>')
+    html.append(f'<li><b>Spot Setting</b>: <div class="spot" style="display:inline;">{treat["spot"]}</div></li>')
+    html.append(f'<li><b>Power</b>: <div class="power" style="display:inline;">{treat["power"]} W</div></li>')
+    html.append(f'<li><b>Voltage</b>: <div class="voltage" style="display:inline;">{treat["voltage"]} V</div></li>')
+    if treat["typ"]=="mess_ref":
+        html.append(f'<li><b>Max. CPS</b>: <div class="maxcps" style="display:inline;">{treat["maxcps"]}</div></li>')
+        html.append(f'<li><b>Refrance Peak</b>: <div class="refpeak" style="display:inline;">{treat["refpeak"]}</div></li>')
+    else:
+        html.append(f'<li><b>Core Levels</b>: <div class="corelvls" style="display:inline;">{", ".join(treat["corelvls"])} V</div></li>')
+    html.append(f'<li><b>Set Gas</b>: <div class="gases" style="display:inline;">{", ".join([f"{g} ({v:.1e} mbar)" for g, v in treat["gases"].items()])}</div></li>')
+    html.append(f'<li><b>Position</b>: <div class="pos" style="display:inline;">{treat["pos"]} V</div></li>')
+
+    # list of optional conditions ['gases', 'maxcps', 'corelvls', 'dura', 'temp', 'temp_p', 'ramp', 'comment']
     for cond_type, cond_val in treat["conditions"]:
-        if cond_type == "excite":
-            html.append(f'<li><b>Excitation Energy</b>: <div class="{cond_type}" style="display:inline;">{cond_val} K</div></li>')
-            
-        elif cond_type == "temp":
+        if cond_type == "temp":
             html.append(f'<li><b>Const. Temprature</b>: <div class="{cond_type}" style="display:inline;">{cond_val} K</div></li>')
         
         elif cond_type == "temp_p":
@@ -91,14 +162,8 @@ def mess_html(treat):
             label = "Ramp Power" if typ == 0 else "Ramp Temperature"
             html.append(f'<li><b>{label}</b>: <div class="ramp" style="display:inline;">{ramp_line}</div></li>')
             
-        elif cond_type == "xsource":
-            html.append(f'<li><b>X-Ray Source</b>: <div class="xsource" style="display:inline;">{cond_val["U"]} V ({cond_val["I"]} mA)</div></li>')
-            
         elif cond_type == "dura":
             html.append(f'<li><b>Duration</b>: <div class="{cond_type}" style="display:inline;">{cond_val}</div></li>')
-        
-        elif cond_type == "maxcps":
-            html.append(f'<li><b>Max. CPS</b>: <div class="{cond_type}" style="display:inline;">{cond_val}</div></li>')
             
         else:
             html.append(f'<li><b>{cond_type}</b>: <div class="{cond_type}" style="display:inline;">{cond_val}</div></li>')
@@ -114,6 +179,18 @@ def mess_html(treat):
 ## convert the messurement conditions into the correct format
 def parse_mess(treat):
     ## treat["conditions"] = [ ("temp0", "298 K"), ("gases", "..."), ... ]
+    value = treat["gases"].strip().split(",")
+    treat["gases"] = {}
+    for term in value:
+        term = term.split("(")
+        gas = term[0].strip()
+        try:
+            pressure = float(term[1].rstrip(")").split(" ")[0])
+            treat["gases"][gas] = pressure
+        except IndexError:
+            continue
+    treat["corelvls"] = treat["corelvls"].strip().split(",")
+    
     for i, cond in enumerate(treat["conditions"]):
         value = treat["conditions"][i][1]
         if cond[0] in ["temp0", "temp"]:
@@ -199,6 +276,7 @@ def remove_step_entry(body_soup, title, typ):
 def update_exp_step(exp_client, body_soup, step):
     new_html = mess_html(step)
     new_soup = BeautifulSoup(new_html or "", 'html.parser').div
+    print(new_html)
     
     ## replace treatment step
     for mydiv in body_soup.find_all('div', class_=step["typ"]):
@@ -210,6 +288,7 @@ def update_exp_step(exp_client, body_soup, step):
     
     ## patch experiment
     response = exp_client.patch_experiment(st.session_state["exp_id"], body={ 'body': str(body_soup) })
+    #print(response)
 
 #### Get Data from Experiment ####
 ## get experiment
@@ -232,8 +311,9 @@ body_soup = BeautifulSoup( experiment.body or "", 'html.parser')
 all_messes = get_mess_steps(body_soup)
 
 #### Setup for Selecting and loading Treatment step ####
+
 if ("selected_mess" not in st.session_state)or(st.session_state['selected_mess']==None):
-    st.session_state['selected_mess'] = { 'title':None, 'typ':None, 'conditions':[], 'note':None }
+    st.session_state['selected_mess'] = default_mess
 if "mess_index" not in st.session_state:
     st.session_state['mess_index'] = -1
 else:
@@ -254,13 +334,14 @@ selected_index = -1
 selected_typi = -1
 
 # select (old),  typ (new), reload (old), delete (old),create (new)
-col_old_treat, col_new_typ, col_reload, col_old_del, col_new_yes = st.columns([6,5,2,3,3])
+col_old_treat, col_new_typ, col_reload, col_old_del, col_new_yes = st.columns([8,6,2,2,3])
 
 with col_old_treat:
     selected_index = get_index(options_titles,st.selectbox('Measurement:', options_titles, index=st.session_state['mess_index'] if not -1 else 0, key="mess_old"))
     if (selected_index!=-1)and((selected_index!=st.session_state["mess_index"])or(st.session_state["reload_mess"])):
         ## get treatment data parsed
         st.session_state["mess_index"] = selected_index
+        st.session_state["selected_mess"] = default_mess
         st.session_state["selected_mess"] = parse_mess(all_messes[selected_index])
         st.session_state["reload_mess"] = False
         ## clear treatment input keys
@@ -273,7 +354,7 @@ with col_new_typ:
     
 with col_reload:
     st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
-    if st.button("🔄", key="butt_reload"):
+    if st.button("🔄", key="butt_reload", help="Reload Measurement Step"):
         ## clear data from old condition inputs
         st.session_state["reload_mess"] = True
         st.rerun()
@@ -281,20 +362,20 @@ with col_reload:
         
 with col_old_del:
     st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
-    if st.button("❌ Delete", key="butt_delete"):
+    if st.button("❌", key="butt_delete", help="Delete Selected Measurement"):
         if selected_index!=-1:
             body_soup = remove_step_entry(body_soup, st.session_state['selected_mess']["title"], st.session_state['selected_mess']["typ"])
             response = exp_client.patch_experiment(st.session_state["exp_id"], body={ 'body': str(body_soup) })
-            st.session_state['selected_mess'] = { 'title':None, 'typ':None, 'conditions':[], 'note':None }
+            st.session_state['selected_mess'] = default_mess
             st.session_state['mess_index'] = -1
             st.rerun()
             
 with col_new_yes:
     st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
-    if st.button("➕ Create", key="butt_create"):
+    if st.button("➕ New", key="butt_create",  help="Create New Measurement"):
         typ = classes_typs[selected_typi]
         name = options_typs[selected_typi]
-        num = get_smallest_available([ mess["num"] for treat in all_messes])
+        num = get_smallest_available([ mess["num"] for mess in all_messes])
         my_html = (
             f"<div class='{typ}'>"
             f"<h5><div class='title' style='display:inline;'>{name} #{num}</div>: <a><div class='sample' style='display:inline;'>( Sample {sample_ref_idx} )</div></a></h5><br>"
@@ -306,9 +387,111 @@ with col_new_yes:
 
 st.markdown("---")
 
+## list conditions  removed "Mg K α₁ (1253.6 eV)", "Cu K α₁ (8047.8 eV)" since dont know spot settings
+excitation_energies = ["Al K α₁ (1486.6 eV)", "Ag L α₁ (2984.3 eV)", "Cr K α₁ (5414.8 eV)"]
+spot_settings = [["Al 120um 50W", "Al 250um 100W", "Al 330um 150W", "Al 70um 20W"],
+["Ag 130um 25W", "Ag 260um 50W", "Ag 370um 75W", "Ag 500um 100W", "Ag 70um 10W"],
+[ "Cr 200um 10W", "Cr 200um 10W (Energy = 23kV)", "Cr 200um 25W","Cr 330um 50W", "Cr 330um  50W (Energy = 23kV)", "Cr 430um 75W", "Cr 530um 100W"]]
+VALID_ORBITALS = {
+    "C":   ["1s"],
+    "O":   ["1s"],
+    "Ti":  ["2p", "2s"],
+    "Ag":  ["3d", "3p"],
+    "Pd":  ["3d", "3p"],
+    "Al":  ["2p", "2s"],
+    "Cr":  ["2p", "2s"],
+    "Ni":  ["2p"],
+    "Fe":  ["2p"],
+    "Cu":  ["2p", "3p"],
+    "Zn":  ["2p", "3p"],
+    "Si":  ["2p", "2s"],
+    "N":   ["1s"]
+}
 
-## list conditions
-should_reload = True
+## mandatory fields { 'title':None, 'typ':None, 'excite':None, 'spot':None, 'power':0.0, 'voltage':0.0, 'corelvls':[], 'gases':{}, 'position':None, 'conditions':[], 'note':None }
+col_exc, col_spot = st.columns(2)
+with col_exc:
+    excite = st.selectbox("Excitation Energy:", excitation_energies, key="xray_exc")
+    st.session_state["selected_mess"]["excite"] = excite
+with col_spot:
+    idx = get_index(excitation_energies,excite)
+    if idx>=0:
+        spot = st.selectbox("Spot:", spot_settings[idx], key="xray_spot")
+        st.session_state["selected_mess"]["spot"] = spot
+    else:
+        spot = st.selectbox("Spot:", [], key="xray_spot")
+        st.session_state["selected_mess"]["spot"] = spot
+
+col_pow, col_vol = st.columns(2)
+with col_pow:
+    power = float_text_input("xray_pow", "Power [W]", default="0.0")
+    st.session_state["selected_mess"]["power"] = power
+with col_vol:
+    voltage = float_text_input("xray_vol", "Voltage [kV]", default="0.0")
+    st.session_state["selected_mess"]["voltage"] = voltage
+
+## Reference Measurement typ specific
+if st.session_state['mess_index']!=-1:
+    mess_typ = st.session_state['selected_mess']['typ']
+elif selected_typi!=-1:
+    mess_typ = classes_typs[selected_typi]
+
+if mess_typ=="mess_ref":
+    col_cps, col_ref = st.columns(2)
+    with col_cps:
+        max_cps = float_text_input("max_cps", "Max. CPS", default="0.0")
+        st.session_state["selected_mess"]["maxcps"] = max_cps
+    with col_ref:
+        ref_peak = st.text_input("Reference Peak", placeholder="e.g., O₂ at 525 eV")
+        st.session_state["selected_mess"]["ref_peak"] = ref_peak
+else:
+    corelvls = CoreLevelsCondition( "corelvls", VALID_ORBITALS)
+    corelvls.render()
+    st.session_state["selected_mess"]["corelvls"] = corelvls.get_data()
+    
+xgases = GasComposer(key=f"xgases")
+xgases.render()
+st.session_state["selected_mess"]["gases"] = xgases.get_data()
+
+##### get positions
+all_positions = []
+if body_soup.find('div', class_='resc'):
+    try:
+        count = 0
+        for div in body_soup.find_all('div', class_='pos'):
+            txt = div.get_text(strip=True).replace("mm","")
+            txt = txt.replace("°","")
+            txt = txt.replace(" ","")
+            txt = txt.split(',')
+            pos = {}
+            for param in txt:
+                if '=' in param:
+                    param = param.split("=", 1)
+                    key = param[0]
+                    value = param[1]
+                    try:
+                        value = float(value)
+                    except:
+                        value = 0.0
+                    pos[key] = value
+            all_positions.append( { 'name':f"Position {count+1}", 'pos':pos} )
+            count += 1
+    except AttributeError as e:
+        st.info(f"possibly missing Resource Information?")
+
+all_positions_txt = [ f"{pos['name']}" for pos in all_positions ]
+
+col_pos, col_postxt = st.columns(2)
+with col_pos:
+    position = st.selectbox("Position:", all_positions_txt, key="position")
+    st.session_state["selected_mess"]["pos"] = position
+with col_postxt:
+    idx = get_index(all_positions_txt, st.session_state["selected_mess"]["pos"])
+    st.markdown("<div style='height:32px;'></div>", unsafe_allow_html=True)
+    if idx!=-1:
+        pos = f'x={all_positions[idx]["pos"]["x"]}, y={all_positions[idx]["pos"]["y"]}, z={all_positions[idx]["pos"]["z"]}'
+        st.markdown(f"{pos}")
+
 # conditions = [ ("temp0", "298 K"), ("gases", "..."), ... ]
 if st.session_state["mess_index"]!=-1:
     for i in range(0, len(st.session_state['selected_mess']['conditions'])):
@@ -328,26 +511,28 @@ if st.session_state["mess_index"]!=-1:
                 cond = PhysicalQuantityInput(key=f"{i}", label="Plate Temperature:", units="K")
             elif cond_typ == "dura":
                 cond = DurationCondition(key=f"{i}")
-            elif cond_typ == "xsource":
-                cond = IonEnergyCondition(key=f"{i}", label="X-Ray Source")
             else:
-                cond = RetractableComment(key=f"{i}", label=cond_typ)
+                cond = None
             ## update treatment condition
-            if (cond.key not in st.session_state["cond_input_keys"]):
-                cond.set_data(st.session_state["selected_mess"]["conditions"][i][1])
-                st.session_state["cond_input_keys"].append(cond.key)
-            cond.render()
-            st.session_state["selected_mess"]["conditions"][i][1] = cond.get_data()
+            if (cond!=None):
+                if (cond.key not in st.session_state["cond_input_keys"]):
+                    cond.set_data(st.session_state["selected_mess"]["conditions"][i][1])
+                    st.session_state["cond_input_keys"].append(cond.key)
+                cond.render()
+                st.session_state["selected_mess"]["conditions"][i][1] = cond.get_data()
         with col_del:
             if st.button("❌", key=f"del_cond_{i}"):
                 del st.session_state["selected_mess"]["conditions"][i]
                 st.rerun()
 
-## add a new condition
+## add a new optional condition
+st.markdown("---")
+optional_cond = [ "Set Gas", "Duration", "Const. Temperature", "Plate Temperature", "Heating Ramp", "Comment", "Position"]
+
 new_cond_typ = -1
 col_cond_sel, col_cond_yes = st.columns([3,2])
 with col_cond_sel:
-    new_cond_typ = get_index(cond_names,st.selectbox('Select Condition to Add:', cond_names, index=0, key="sel_cond"))
+    new_cond_typ = get_index(cond_names,st.selectbox('Select Condition to Add:', optional_cond, index=0, key="sel_cond"))
 with col_cond_yes:
     st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
     if st.button("➕ Add Condition", key="new_cond"):
@@ -361,21 +546,21 @@ with col_cond_yes:
                 new_cond = [cond_class, {} ]
             elif cond_class=="ramp":
                 new_cond = [cond_class, { 'typ':0, 'start':0.0, 'stop':0.0, 'step':0.0 } ]
-            elif cond_class=="xsource":
-                new_cond = [cond_class, { 'U':0.0, 'I':20.0} ]
             elif cond_class=="dura":
                 new_cond = [cond_class, ""]
             elif cond_class=="comment":
                 new_cond = [cond_class, ""]
             else:
-                new_cond = [cond_class, ""]
-            st.session_state["selected_mess"]["conditions"].append(new_cond)
-            st.rerun()
+                new_cond = None
+            if new_cond !=None:
+                st.session_state["selected_mess"]["conditions"].append(new_cond)
+                st.rerun()
             
 #### Update Step ####
 st.markdown("---")
 if st.button("Update Treatment step", key="submit"):
     if selected_index!=-1:
+        print("UPDATE!!!!!!")
         update_exp_step(exp_client, body_soup, st.session_state["selected_mess"])
         st.rerun()
 
