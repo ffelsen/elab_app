@@ -21,13 +21,6 @@ cond_classes = ['temp0', 'temp', 'gases', 'ramp', 'xenergy', 'dura', 'comment']
 cond_names = ["Initial Temperature", "Constant Temperature", "Set Gas Compesition", "Heating Ramp", "Ion Energy", "Duration", "Comment"]
 
 #### helper functions ####
-## get #number for new treatment step
-def get_smallest_available(nums):
-    n = 1
-    while n in nums:
-        n += 1
-    return n
-
 ## get treatment steps from experiments html
 def get_treat_steps(body_soup):
     treat_sections = body_soup.find_all('div', class_=['sputter', 'anneal'])
@@ -309,10 +302,11 @@ st.markdown("---")
 ## list conditions
 should_reload = True
 # conditions = [ ("temp0", "298 K"), ("gases", "..."), ... ]
+
 if st.session_state["treat_index"]!=-1:
     for i in range(0, len(st.session_state['selected_treatment']['conditions'])):
-        col_cond, col_del = st.columns([11,1])
         cond_typ = st.session_state["selected_treatment"]["conditions"][i][0]
+        col_cond, col_del = st.columns([11,1])
         with col_cond:
             ## get input class
             if cond_typ == "gases":
@@ -330,14 +324,14 @@ if st.session_state["treat_index"]!=-1:
             elif cond_typ == "xenergy":
                 cond = IonEnergyCondition(key=f"{i}")
             else:
-                cond = RetractableComment(key=f"{i}")
-                st.write(st.session_state["selected_treatment"]["conditions"][i][0])
+                cond = None
             ## update treatment condition
-            if (cond.key not in st.session_state["cond_input_keys"]):
-                cond.set_data(st.session_state["selected_treatment"]["conditions"][i][1])
-                st.session_state["cond_input_keys"].append(cond.key)
-            cond.render()
-            st.session_state["selected_treatment"]["conditions"][i][1] = cond.get_data()
+            if cond!=None:
+                if (cond.key not in st.session_state["cond_input_keys"]):
+                    cond.set_data(st.session_state["selected_treatment"]["conditions"][i][1])
+                    st.session_state["cond_input_keys"].append(cond.key)
+                cond.render()
+                st.session_state["selected_treatment"]["conditions"][i][1] = cond.get_data()
         with col_del:
             if st.button("❌", key=f"del_cond_{i}"):
                 del st.session_state["selected_treatment"]["conditions"][i]
@@ -367,8 +361,11 @@ with col_cond_yes:
                 new_cond = [cond_class, ""]
             elif cond_class=="comment":
                 new_cond = [cond_class, ""]
-            st.session_state["selected_treatment"]["conditions"].append(new_cond)
-            st.rerun()
+            else:
+                new_cond = None
+            if new_cond!=None:
+                st.session_state["selected_treatment"]["conditions"].append(new_cond)
+                st.rerun()
             
 #### Update Step ####
 st.markdown("---")

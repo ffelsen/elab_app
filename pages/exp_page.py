@@ -3,21 +3,14 @@ from utils import *
 import requests
 from elabapi_python import ExperimentsApi
 from bs4 import BeautifulSoup
+import os
 from warnings import filterwarnings
-from inputparsing import get_index
 filterwarnings('ignore')
 
 ## have to have a team
 if not st.session_state['team']:
     st.warning("please login as a member of a team")
     st.stop()
-
-## get smallest positive int not in array
-def smallest_available(arr):
-    n = 1
-    while n in arr:
-        n += 1
-    return n
 
 #### Experiment Overview ####
 st.title("Experiment Overview")
@@ -30,20 +23,22 @@ try:
 except Exception as e:
     st.error(f"Error while loading Experiments: {e}")
     st.stop()
-
-## get index of current experiment
-idx = 0
-for i in range(0,len(ids)):
-    if ids[i] == st.session_state["exp_id"]:
-        idx = i
-        break
+        
 ## select Experiment from existing
-exp_titles = [f"{name} (ID: {id})" for name, id in zip(names, ids)]
-new_id = -1
-selected_title = st.selectbox( "Select Experiment or create New:", exp_titles, index=idx)
-idx = get_index(exp_titles,selected_title)
-if idx!=-1:
-    st.session_state["exp_name"] = names[idx]
+exp_index = get_index(ids, st.session_state["exp_id"],0)
+titles_exps = [f"{name} (ID: {id})" for name, id in zip(names, ids)]
+selected_title = st.selectbox( "Select Experiment or create New:", titles_exps, index=exp_index)
+exp_index = get_index(titles_exps,selected_title)
+
+## if selected invalid use stored exp_id to get index
+if exp_index == -1:
+    exp_index = get_index(st.session_state["exp_id"])
+
+## set selected experiment if exists
+if exp_index!=-1:
+    st.session_state["exp_id"] = ids[exp_index]
+    st.session_state["exp_name"] = names[exp_index]
+    selected_exp = exps[exp_index]
 
 ## or create new experiment
 cat = None
@@ -55,16 +50,10 @@ with col_exp_cat:
     cat = st.selectbox('Category', ["Not set"] + cats, index=0, label_visibility="collapsed")
 with col_exp_new:
     if st.button("➕ Create"):
-        new_id = smallest_available(ids)
         if new_title.strip() != "":
             catid = None if cat == "Not set" else ids[cats.index(cat)]
-            selected_title = f"{new_title} (ID: {new_id})"
             create_experiment(st.session_state["api_client"], new_title, "Description...", catid)
             st.rerun()
-
-st.session_state["exp_id"] = int(selected_title.split("(ID: ")[1].rstrip(")"))
-exp_index = ids.index(st.session_state["exp_id"])
-selected_exp= exps[exp_index]
 st.markdown("---")
 
 #### get experiment ####
@@ -77,6 +66,7 @@ else:
 
 ## update experiment with path
 def update_exp_path(body_soup, path_str):
+    ## find the resource section in html or create it before table
     resc_div = body_soup.find('div', class_='resc')
     if not resc_div:
         resc_div = body_soup.new_tag("div", attrs={'class': 'resc'})
@@ -93,9 +83,10 @@ def update_exp_path(body_soup, path_str):
         else:
             body_soup.append(resc_div)
 
+    ## find list <ul> in resources or create it
     resc_ul = resc_div.find('ul')
     if not resc_ul:
-        # Try to create <ul> if it doesn't exist
+        ## make sure a header exists before the list
         resc_h = resc_div.find(['h3', 'h4', 'h5'])
         if not resc_h:
             resc_h = body_soup.new_tag("h5")
@@ -106,7 +97,7 @@ def update_exp_path(body_soup, path_str):
         resc_ul = body_soup.new_tag("ul")
         resc_h.insert_after(resc_ul)
 
-    # New <li> element to insert
+    ## create linked path list element <li>
     new_li = body_soup.new_tag('li')
     strong_tag = body_soup.new_tag('strong')
     strong_tag.string = 'Linked Path'
@@ -116,7 +107,7 @@ def update_exp_path(body_soup, path_str):
     new_li.append(': ')
     new_li.append(div_tag)
 
-    # Look for existing path entry
+    # replace existing linked path and replace or append it to <ul> list
     existing_div = resc_ul.find('div', class_='path')
     if existing_div:
         existing_li = existing_div.find_parent('li')
@@ -124,20 +115,23 @@ def update_exp_path(body_soup, path_str):
             existing_li.replace_with(new_li)
     else:
         resc_ul.append(new_li)
+        
+    ## patch experiment body with new html
     response = exp_client.patch_experiment(st.session_state["exp_id"], body={ 'body': str(body_soup) })
         
 ## input new path
-import os
-col_path, col_subpath = st.columns([8,2])
+col_path, col_submitpath = st.columns([8,2])
 with col_path:
     st.session_state.file_path = st.text_input("Path Linked To Experiment:", value=st.session_state.file_path, placeholder="e.g., C:/Users/.../Data/MyExperiment/")
-with col_subpath:
+with col_submitpath:
     st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
     if st.button("Update",key="sub_path"):
         if st.session_state.file_path!="":
             path = os.path.expanduser(st.session_state.file_path)
             os.makedirs(path, exist_ok=True)
             update_exp_path(body_soup, st.session_state.file_path)
+            if not os.path.exists(path):
+                st.warning(f"Path may not exist: '{path}'")
             st.rerun()
 
 ## title

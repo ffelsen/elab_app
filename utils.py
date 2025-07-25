@@ -13,6 +13,22 @@ import os
 import requests
 from elabapi_python import UploadsApi
 
+#### General Function ####
+## get smallest positive int not in array (used to assign new step a number)
+def smallest_available(arr):
+    n = 1
+    while n in arr:
+        n += 1
+    return n
+
+## wrapper for lst.index(elm) since it raises error when elm not in lst
+def get_index(lst, elm, default=-1):
+    try:
+        return lst.index(elm)
+    except ValueError:
+        return default
+
+#### ELAB API Wrapper Functions ####
 def get_linked_resources(api_client, exp_id):
     api_key  = api_client.configuration.api_key['api_key']
     base_url = api_client.configuration.host.rstrip('/')
@@ -233,7 +249,7 @@ def get_experiments(api_client):
     ids = [exp.id for exp in exps]
     return names, ids, exps
 
-def create_experiment(api_client, name, comment='', catid=None):
+def create_experiment(api_client, name, comment='', catid=None, author_id=None):
     """
     Create a new experiment entry in eLabFTW
 
@@ -366,3 +382,65 @@ def link_resource_to_exp(api_client, exp_id, res_id):
         auth_settings=['apiKeyAuth'],
         response_type=None
     )
+
+## link and unlink samples
+def link_sample_to_exp(exp_client, exp_id,sample_id):
+    exp_client.api_client.call_api(
+        f"/experiments/{exp_id}/items_links/{sample_id}",
+        "POST",
+        body=None,
+        response_type=None,
+        auth_settings=["apiKey"]
+    )
+
+def unlink_sample_from_exp(exp_client, exp_id, sample_id):
+    exp_client.api_client.call_api(
+        f"/experiments/{exp_id}/items_links/{sample_id}",
+        "DELETE",
+        body=None,
+        response_type=None,
+        auth_settings=["apiKey"]
+    )
+    
+## update Experiments html with currentlist of samples and patch 
+def experiment_patch_samples(exp_client, exp_id, body_soup, allsamples):
+    ## remove Positions from html 
+    resc_div = body_soup.find('div', class_='resc')
+    resc_ul = resc_div.find('ul')
+    if not resc_ul:
+        resc_h = body_soup.find(['h3','h4','h5'])
+        if resc_h:
+            resc_ul = body_soup.new_tag("ul")
+            resc_h.insert_after(resc_ul)
+    last_resc_li = None
+    lis = resc_ul.find_all('li', recursive=False) if resc_ul else []
+    for li in lis:
+        if li.find('div', class_='smpl'):
+            li.decompose()
+
+    ## insert currently loaded samples
+    for i, sample in enumerate(allsamples):
+        ## create html tags
+        new_li = body_soup.new_tag('li')
+        new_b = body_soup.new_tag('strong')
+        new_b.string = f"Sample {i+1}"
+        href = f"{st.session_state['host_domain']}/database.php?mode=view&id={sample.id}"
+        a_tag = body_soup.new_tag('a', href=href, **{'class': 'smpl'})
+        pos_div = body_soup.new_tag('div', **{'class': 'smpl', 'style': 'display: inline;'})
+        pos_div.string = f"{sample.title} (ID: {sample.id})"
+        ## stick tags together
+        a_tag.append(pos_div)
+        new_li.append(new_b)
+        new_li.append(": ")
+        new_li.append(a_tag)
+        ## insert into html
+        if last_resc_li:
+            last_resc_li.insert_after(new_li)
+            last_resc_li = new_li
+        else:
+            resc_ul.append(new_li)
+            last_resc_li = new_li
+
+    ## patch experiment with new body
+    response = exp_client.patch_experiment(exp_id, body={ 'body': str(body_soup) })
+    

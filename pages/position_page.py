@@ -3,6 +3,7 @@ import os
 from elabapi_python import ItemsApi, ExperimentsApi
 from bs4 import BeautifulSoup
 from inputparsing import *
+from utils import get_index
 
 ### Define Position ####
 st.title("Define Position")
@@ -43,9 +44,12 @@ def update_exp_positions(exp_client, body_soup):
     for i, pos in enumerate(step_data["positions"]):
         txt = []
         for key in ['x','y','z']:
-            txt.append(f"{key} = {pos['pos'][key]} mm")
-        if ('angle' in pos['pos'])and(pos['pos']['angle']!=0):
-            txt.append(f"angle = {pos['pos']['angle']} °")
+            if key in pos['pos']:
+                txt.append(f"{key} = {pos['pos'][key]} mm")
+            elif ('angle' in pos['pos'])and(pos['pos']['angle']!=0):
+                txt.append(f"angle = {pos['pos']['angle']} °")
+            else:
+                txt.append(f"{key} = 0")
         txt = ", ".join(txt)
         new_li = body_soup.new_tag('li')
         new_b = body_soup.new_tag('strong')
@@ -61,7 +65,6 @@ def update_exp_positions(exp_client, body_soup):
         else:
             resc_ul.append(new_li)
             last_resc_li = new_li
-
     ## patch experiment with new body
     response = exp_client.patch_experiment(st.session_state["exp_id"], body={ 'body': str(body_soup) })
 
@@ -75,23 +78,20 @@ if body_soup.find('div', class_='resc'):
     try:
         count = 0
         for div in body_soup.find_all('div', class_='pos'):
-            txt = div.get_text(strip=True).replace("mm","")
-            txt = txt.replace("°","")
-            txt = txt.replace(" ","")
+            txt = div.get_text(strip=True).replace("mm","").replace("°","").replace(" ","")
             txt = txt.split(',')
             pos = {}
             for param in txt:
                 if '=' in param:
-                    param = param.split("=", 1)
-                    key = param[0]
-                    value = param[1]
+                    key, value = param.split("=", 1)
                     try:
-                        value = float(value)
-                    except:
+                        value = round(float(value),12)
+                    except ValueError:
                         value = 0.0
                     pos[key] = value
-            step_data['positions'].append( { 'name':f"Position {count+1}", 'pos':pos} )
-            count += 1
+            if any(k in pos for k in ['x','y','z']):
+                step_data['positions'].append( { 'name':f"Position {count+1}", 'pos':pos} )
+                count += 1
     except AttributeError as e:
         st.info(f"possibly missing Position Information?")
 else:
@@ -113,6 +113,7 @@ else:
             body_soup.contents[0].insert_before( new_soup )
         else:
             body_soup.append( new_soup )
+print("POS: ",step_data['positions'])
 
 ## select position to edit
 options_positions = [ pos['name'] for pos in step_data['positions'] ]
@@ -142,11 +143,11 @@ else:
 
 col_x, col_y, col_z = st.columns(3)
 with col_x:
-    pos_inp_data['x'] = st.number_input("Enter x value:", value=pos_inp_data['x'], format="%.2f")
+    pos_inp_data['x'] = st.number_input("Enter x value:", value=float(pos_inp_data['x']), format="%.2f")
 with col_y:
-    pos_inp_data['y'] = st.number_input("Enter y value:", value=pos_inp_data['y'], format="%.2f")
+    pos_inp_data['y'] = st.number_input("Enter y value:", value=float(pos_inp_data['y']), format="%.2f")
 with col_z:
-    pos_inp_data['z'] = st.number_input("Enter z value:", value=pos_inp_data['z'], format="%.2f")
+    pos_inp_data['z'] = st.number_input("Enter z value:", value=float(pos_inp_data['z']), format="%.2f")
 
 #### Update Experiments Positions ####
 if st.button("Submit", key="submit"):

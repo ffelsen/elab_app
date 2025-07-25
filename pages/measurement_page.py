@@ -411,13 +411,13 @@ VALID_ORBITALS = {
 ## mandatory fields { 'title':None, 'typ':None, 'excite':None, 'spot':None, 'power':0.0, 'voltage':0.0, 'corelvls':[], 'gases':{}, 'position':None, 'conditions':[], 'note':None }
 col_exc, col_spot = st.columns(2)
 with col_exc:
-    old_idx = get_index(excitation_energies,st.session_state["selected_mess"]["excite"], dflt=0)
+    old_idx = get_index(excitation_energies,st.session_state["selected_mess"]["excite"], default=0)
     excite = st.selectbox("Excitation Energy:", excitation_energies, index=old_idx, key="xray_exc")
     st.session_state["selected_mess"]["excite"] = excite
 with col_spot:
     idx = get_index(excitation_energies,excite)
     if idx>=0:
-        old_idx = get_index(spot_settings[idx],st.session_state["selected_mess"]["spot"], dflt=0)
+        old_idx = get_index(spot_settings[idx],st.session_state["selected_mess"]["spot"], default=0)
         spot = st.selectbox("Spot:", spot_settings[idx], index=old_idx, key="xray_spot")
         st.session_state["selected_mess"]["spot"] = spot
     else:
@@ -495,12 +495,16 @@ with col_postxt:
     if idx!=-1:
         pos = f'x={all_positions[idx]["pos"]["x"]}, y={all_positions[idx]["pos"]["y"]}, z={all_positions[idx]["pos"]["z"]}'
         st.markdown(f"{pos}")
+        
 
 # conditions = [ ("temp0", "298 K"), ("gases", "..."), ... ]
+valid_condition_typs = ['gases','ramp','temp','dura']
 if st.session_state["mess_index"]!=-1:
     for i in range(0, len(st.session_state['selected_mess']['conditions'])):
-        col_cond, col_del = st.columns([11,1])
         cond_typ = st.session_state["selected_mess"]["conditions"][i][0]
+        if cond_typ not in valid_condition_typs:
+            continue
+        col_cond, col_del = st.columns([11,1])
         with col_cond:
             ## get input class
             if cond_typ == "gases":

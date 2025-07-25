@@ -1,21 +1,12 @@
 #!/usr/bin/python
 import streamlit as st
+from utils import get_index
 
 ####### GLOBAL CONSTANTS ########
 DAY_MICROS = 24*60*60*1000*1000
 HOUR_MICROS = 60*60*1000*1000
 MIN_MICROS = 60*1000*1000
 SEC_MICROS = 1000*1000
-
-####### GENERAL FUNCTIONS ########
-def abbrv_s(s):
-    return s[:4] + "." if len(s) > 5 else s
-    
-def get_index(lst, elm, dflt=-1):
-    try:
-        return lst.index(elm)
-    except ValueError:
-        return dflt
 
 #### parsing and formating ####
 def t_time_str(t_time):
