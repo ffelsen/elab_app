@@ -9,7 +9,7 @@ from warnings import filterwarnings
 import datetime
 filterwarnings('ignore')
 from utils import *
-import templates
+import pages.templates as templates
 from pages.create_transcript import transcription_widget
 
 def clear_text(): 
