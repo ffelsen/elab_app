@@ -10,6 +10,7 @@ import datetime
 from PIL import Image
 from uuid import uuid4
 from utils import *
+import os
 
 filterwarnings('ignore')
 
@@ -53,6 +54,7 @@ if canvas_result.image_data is not None:
 if st.button('Upload drawing'):
     iid = uuid4()
     im = Image.fromarray(canvas_result.image_data)
+    os.makedirs('./temp', exist_ok=True)
     file_name = './temp/%s.png'%iid
     im.save(file_name, "PNG")
     upload_image(st.session_state.api_client, st.session_state.exp_id, file_name)
