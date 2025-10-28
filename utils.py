@@ -37,7 +37,7 @@ def append_to_experiment_old(api_client, exp_id, content):
     experimentsApi.patch_experiment(exp_id,body={'body':new_content})
     return True
 
-def append_to_experiment(api_client, exp_id, content):
+def append_to_experiment(api_client, exp_id, content, custom_timestamp=None):
     """Append a time stamped comment to an ElabFTW entry
     in a tabular format
 
@@ -45,9 +45,16 @@ def append_to_experiment(api_client, exp_id, content):
     api_client -- elabapi_python api_client instance
     exp_id -- id of the elab entry of the experiment
     content -- content to add to the line (str)
+    custom_timestamp -- optional custom timestamp string (if None, uses current time)
     """
     
-    now = datetime.datetime.now()
+    # Use custom timestamp if provided, otherwise use current time
+    if custom_timestamp is not None:
+        timestamp = custom_timestamp
+    else:
+        now = datetime.datetime.now()
+        timestamp = now
+    
     content = content.replace('\n','<br>')
  
     # get current content of the experiment
@@ -59,7 +66,7 @@ def append_to_experiment(api_client, exp_id, content):
     line ='''<tr style="border-width:0px;">
     <td style="border-width:0px;">%s</td>
     <td style="border-width:0px;"> %s</td>
-    </tr>'''%(now, content)
+    </tr>'''%(timestamp, content)
     
     if not '<table' in current_content: # create a new table in the entry if there is none
     

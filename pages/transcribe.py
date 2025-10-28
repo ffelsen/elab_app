@@ -28,10 +28,10 @@ def main(
         help="Model to use",
         prompt="Choose a model from ['tiny', 'base', 'small', 'medium']",
     ),
-    energy_threshold: int = typer.Option(300, help="Energy level for mic to detect."),
-    record_timeout: float = typer.Option(3.0, help="How real time the recording is in seconds."),
+    energy_threshold: int = typer.Option(150, help="Energy level for mic to detect."),
+    record_timeout: float = typer.Option(60.0, help="How real time the recording is in seconds."),
     phrase_timeout: float = typer.Option(
-        15,
+        7.0,
         help=(
             "How much empty space between recordings before we consider"
             "it a new line in the transcription."
@@ -50,7 +50,6 @@ def main(
     source = sr.Microphone(sample_rate=16000, device_index=mic_index)
 
     # Load / Download model
-    model = model + ".en"
     audio_model = whisper.load_model(model)
 
     # We use SpeechRecognizer to record our audio because it has a nice feature where it can detect
@@ -174,12 +173,6 @@ def main(
             if not data_queue.empty():
                 now = datetime.now()
 
-                # If enough time has passed between recordings, consider the phrase complete.
-                # Clear the current working audio buffer to start over with the new data.
-                phrase_complete = False
-                if phrase_time and now - phrase_time > timedelta(seconds=phrase_timeout):
-                    phrase_complete = True
-
                 # This is the last time we received new audio data from the queue.
                 phrase_time = now
 
@@ -193,69 +186,32 @@ def main(
                 # default of 32768hz max.
                 audio_np = np.frombuffer(audio_data, dtype=np.int16).astype(np.float32) / 32768.0
 
-                # Read the transcription with timestamps.
-                result = audio_model.transcribe(audio_np, fp16=torch.cuda.is_available())
+                # Read the transcription - get full text only (no individual segment timestamps)
+                result = audio_model.transcribe(audio_np, fp16=torch.cuda.is_available(), language='en', task='transcribe')
                 
-                if result and 'segments' in result and result['segments']:
-                    # Process segments with timestamps
+                if result:
                     current_time = datetime.now()
                     
-                    # Build text for plain transcription (compatibility)
+                    # Get the full text from this block
                     full_text = result["text"].strip()
                     
-                    # If we detected a pause between recordings, add a new item to our transcription.
-                    # Otherwise edit the existing one.
-                    if phrase_complete:
+                    if full_text:
+                        # Calculate timestamp for this block (start of speech in this block)
+                        audio_duration = len(audio_np) / 16000
+                        block_start_time = current_time - timedelta(seconds=audio_duration)
+                        relative_seconds = (block_start_time - session_start_time).total_seconds()
+                        
+                        # Create single block entry with one timestamp
+                        block_data = {
+                            'text': full_text,
+                            'real_time': block_start_time.strftime('%H:%M:%S'),
+                            'relative_time': f"{relative_seconds:.1f}s"
+                        }
+                        
+                        transcription_data.append(block_data)
                         transcription.append(full_text)
-                    else:
-                        cleaned = transcription[-1].strip()
-                        for suffix in ["...", ".", "?"]:
-                            cleaned = cleaned.removesuffix(suffix)
-                        cleaned_text = (cleaned + " " + full_text).strip()
-                        transcription[-1] = cleaned_text
-                    
-                    # Process individual segments for timestamps
-                    for segment in result['segments']:
-                        text = segment['text'].strip()
-                        if text:
-                            # Calculate accurate timestamps
-                            segment_duration = segment['end'] - segment['start']
-                            # Estimate when this segment was actually spoken
-                            speech_time = current_time - timedelta(seconds=len(audio_np)/16000) + timedelta(seconds=segment['start'])
-                            relative_seconds = (speech_time - session_start_time).total_seconds()
-                            
-                            segment_data = {
-                                'text': text,
-                                'start': segment['start'],
-                                'end': segment['end'],
-                                'real_time': speech_time.strftime('%H:%M:%S'),
-                                'relative_time': f"{relative_seconds:.1f}s"
-                            }
-                            
-                            # Add to transcription data if not duplicate
-                            if not transcription_data or transcription_data[-1]['text'] != text:
-                                transcription_data.append(segment_data)
-                else:
-                    # Fallback to old method if segments not available
-                    text = result["text"].strip()
-                    
-                    # If we detected a pause between recordings, add a new item to our transcription.
-                    # Otherwise edit the existing one.
-                    if phrase_complete:
-                        transcription.append(text)
-                    else:
-                        cleaned = transcription[-1].strip()
-                        for suffix in ["...", ".", "?"]:
-                            cleaned = cleaned.removesuffix(suffix)
-                        cleaned_text = (cleaned + " " + text).strip()
-                        transcription[-1] = cleaned_text
-
-                # Clear the console to reprint the updated transcription.
-                os.system("cls" if os.name == "nt" else "clear")
-                for line in transcription:
-                    print(line, end="\n\n")
-                # Flush stdout.
-                print("", end="", flush=True)
+                        
+                        print(f"[{block_start_time.strftime('%H:%M:%S')}] {full_text}")
 
                 # Write updated transcription with timestamps
                 write_transcription_with_timestamps(transcription_data)

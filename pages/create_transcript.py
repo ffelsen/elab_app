@@ -307,21 +307,54 @@ def upload_to_experiment(transcript_content, include_timestamps=False):
         
         # Upload transcript to experiment
         with st.spinner("Uploading transcript to experiment..."):
-            # Format the transcript with appropriate header
-            timestamp_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            
             if include_timestamps and transcript_content.strip():
-                # Check if content already has timestamps
+                # Parse timestamped transcription and upload each block separately
                 if '[' in transcript_content and ']' in transcript_content:
-                    formatted_transcript = transcript_content
+                    lines = transcript_content.strip().split('\n')
+                    
+                    for line in lines:
+                        line = line.strip()
+                        if not line or not line.startswith('['):
+                            continue
+                        
+                        # Parse timestamp format: [HH:MM:SS] Text or [HH:MM:SS] [Xs] Text
+                        try:
+                            # Find first closing bracket
+                            first_bracket_end = line.index(']')
+                            time_str = line[1:first_bracket_end]  # Extract HH:MM:SS
+                            
+                            # Extract text (skip relative time if present)
+                            remaining = line[first_bracket_end + 1:].strip()
+                            if remaining.startswith('['):
+                                # Has relative timestamp, skip it
+                                second_bracket_end = remaining.index(']')
+                                text = remaining[second_bracket_end + 1:].strip()
+                            else:
+                                text = remaining
+                            
+                            if not text:
+                                continue
+                            
+                            # Convert [HH:MM:SS] to full datetime format: YYYY-MM-DD HH:MM:SS.
+                            today = datetime.now().date()
+                            time_parts = time_str.split(':')
+                            if len(time_parts) == 3:
+                                hours, minutes, seconds = map(int, time_parts)
+                                full_datetime = datetime.combine(today, datetime.min.time().replace(hour=hours, minute=minutes, second=seconds))
+                                formatted_timestamp = full_datetime.strftime('%Y-%m-%d %H:%M:%S.')
+                                
+                                # Upload with custom timestamp (no need to prefix in content)
+                                append_to_experiment(st.session_state.api_client, st.session_state.exp_id, text, custom_timestamp=formatted_timestamp)
+                        
+                        except (ValueError, IndexError) as e:
+                            # If parsing fails, skip this line
+                            continue
                 else:
-                    # Fallback to plain text
-                    formatted_transcript = transcript_content
+                    # No timestamps found, upload as plain text with current timestamp
+                    append_to_experiment(st.session_state.api_client, st.session_state.exp_id, transcript_content)
             else:
-                formatted_transcript = transcript_content
-            
-            # Use the append_to_experiment function
-            append_to_experiment(st.session_state.api_client, st.session_state.exp_id, formatted_transcript)
+                # Upload plain text with current timestamp (default behavior)
+                append_to_experiment(st.session_state.api_client, st.session_state.exp_id, transcript_content)
         
         return True
         
@@ -466,13 +499,13 @@ def transcription_widget(key_suffix="", on_upload_callback=None, compact_mode=Fa
             st.warning("⚠️ Could not detect microphones - using default")
         
         if not compact_mode:
-            energy_threshold = st.slider("Energy Threshold", min_value=100, max_value=500, value=300, key=f"energy{key_suffix}")
-            record_timeout = st.slider("Record Timeout (s)", min_value=1.0, max_value=10.0, value=3.0, key=f"record{key_suffix}")
-            phrase_timeout = st.slider("Phrase Timeout (s)", min_value=5.0, max_value=30.0, value=15.0, key=f"phrase{key_suffix}")
+            energy_threshold = st.slider("Energy Threshold", min_value=100, max_value=500, value=150, key=f"energy{key_suffix}")
+            record_timeout = st.slider("Record Timeout (s)", min_value=10.0, max_value=120.0, value=60.0, key=f"record{key_suffix}", help="Maximum duration of continuous recording before processing")
+            phrase_timeout = st.slider("Phrase Timeout (s)", min_value=3.0, max_value=30.0, value=7.0, key=f"phrase{key_suffix}", help="Pause duration that triggers processing")
         else:
-            energy_threshold = 300
-            record_timeout = 3.0
-            phrase_timeout = 15.0
+            energy_threshold = 150
+            record_timeout = 60.0
+            phrase_timeout = 7.0
     
     with col2:
         # Transcription buttons - same logic as main app

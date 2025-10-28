@@ -7,6 +7,7 @@ import elabapi_python
 from elabapi_python.rest import ApiException
 from warnings import filterwarnings
 import datetime
+import os
 from PIL import Image
 from uuid import uuid4
 from utils import *
@@ -53,6 +54,12 @@ if canvas_result.image_data is not None:
 if st.button('Upload drawing'):
     iid = uuid4()
     im = Image.fromarray(canvas_result.image_data)
+    
+    # Create temp directory if it doesn't exist
+    temp_dir = './temp'
+    if not os.path.exists(temp_dir):
+        os.makedirs(temp_dir)
+    
     file_name = './temp/%s.png'%iid
     im.save(file_name, "PNG")
     upload_image(st.session_state.api_client, st.session_state.exp_id, file_name)
