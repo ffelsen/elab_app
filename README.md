@@ -3,24 +3,38 @@
 A Streamlit based app to perform simple API action for ELabFTW. The scope of this app is to provide a simple to use chat like interface
 which automatically creates structured and understandable experiment and entries. All functionalities are based on Streamlit and elabapi_python.
 
-# Setup and Usage
-In order to run the app you will need a few packages. Create a python environment based on the requirement.txt. 
-Next you need to provide the web address of the ElabFTW instance you want to interact with. This needs to be defined in the file main.py.
-Also you need to create an API key, which goes into a separate file and will be read by main.py. The file name in main.py needs to adjusted
-accordingly (here it is digi.key). 
+# Setup 
+You need to provide the host address of the ElabFTW instance you want to interact with in the main.py under "configuration.host".
+Identification currently works via an API key, which goes into a separate file named digi.key and will be read by main.py.
 
-You can run the app using the command
+# Usage
+The depository is managed with uv, which you can install on MacOS and Linux with
 ```
-streamlit run main.py
+curl -LsSf https://astral.sh/uv/install.sh | sh
+````
+and on windows with 
+```
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+For more information visit Astral's uv documentation pages.
+
+Then install streamlit as a uv tool with
+```
+uv tool install streamlit
+```
+Then you can run the app from the depository directory using the command
+```
+uv run -- streamlit run main.py
 ```
 
 # Implemented features
 * creating new experiments
 * adding comments to experiments in chat and template mode
 * adding sketches to experiments
+* transcribing spoken content with timestamps
 
 # To Do
-* link experiment entries to data directories (e.g. on the NAS)
-* track file changes in the data directory and post them to the experiment
-* voice to text model for voice input of comments
+* single sign on (ie Shibolet)
+* connecting to data (e.g. on a NAS or data tagger)
+
 
