@@ -12,10 +12,11 @@ The depository is managed with uv, which you can install on MacOS and Linux with
 ```
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ````
-and on windows with 
+and on Windows with 
 ```
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
+Please make sure user has access to uv and elab directories.
 For more information visit Astral's uv documentation pages.
 
 Then install streamlit as a uv tool with

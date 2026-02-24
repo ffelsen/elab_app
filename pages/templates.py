@@ -25,9 +25,11 @@ def template_1():
     com = st.text_input("Comment")
     if st.button("Submit", on_click = reset):
         prompt = 'Measured at T = %.3f %s and p = %.3f %s\n \n %s'%(T,Tu,p,pu,com)
-        st.session_state.prompt = prompt 
-        append_to_experiment(st.session_state.api_client, st.session_state.exp_id, prompt)
-        message = "Wrote in experiment %s: %s"%(st.session_state.exp_name,prompt)
+        st.session_state.prompt = prompt
+        entity_type = st.session_state.get('entity_type', 'experiments')
+        append_to_experiment(st.session_state.api_client, st.session_state.exp_id, prompt, entity_type=entity_type)
+        entry_label = 'experiment' if entity_type == 'experiments' else 'resource'
+        message = "Wrote in %s %s: %s" % (entry_label, st.session_state.exp_name, prompt)
         st.session_state["chat_history"].append(message)
         if len(st.session_state["chat_history"]) > 10: 
             st.session_state["chat_history"] = st.session_state["chat_history"][-10:]
@@ -48,9 +50,11 @@ def template_2():
     com = st.text_input("Comment")
     if st.button("Submit", on_click = reset):
         prompt = 'Measured at T = %.3f %s and p = %.3f %s\n \n Excited at %s %s \n \n %s'%(T,Tu,p,pu,e,eu,com)
-        st.session_state.prompt = prompt 
-        append_to_experiment(st.session_state.api_client, st.session_state.exp_id, prompt)
-        message = "Wrote in experiment %s: %s"%(st.session_state.exp_name,prompt)
+        st.session_state.prompt = prompt
+        entity_type = st.session_state.get('entity_type', 'experiments')
+        append_to_experiment(st.session_state.api_client, st.session_state.exp_id, prompt, entity_type=entity_type)
+        entry_label = 'experiment' if entity_type == 'experiments' else 'resource'
+        message = "Wrote in %s %s: %s" % (entry_label, st.session_state.exp_name, prompt)
         st.session_state["chat_history"].append(message)
         if len(st.session_state["chat_history"]) > 10: 
             st.session_state["chat_history"] = st.session_state["chat_history"][-10:]
@@ -136,8 +140,10 @@ def template_xps_measurement():
         prompt = "\n".join(prompt_parts)
         
         st.session_state.prompt = prompt
-        append_to_experiment(st.session_state.api_client, st.session_state.exp_id, prompt)
-        message = "Wrote XPS measurement in experiment %s" % st.session_state.exp_name
+        entity_type = st.session_state.get('entity_type', 'experiments')
+        append_to_experiment(st.session_state.api_client, st.session_state.exp_id, prompt, entity_type=entity_type)
+        entry_label = 'experiment' if entity_type == 'experiments' else 'resource'
+        message = "Wrote XPS measurement in %s %s" % (entry_label, st.session_state.exp_name)
         if "chat_history" not in st.session_state:
             st.session_state["chat_history"] = []
         st.session_state["chat_history"].append(message)
@@ -227,8 +233,10 @@ def template_xps_reference():
         prompt = "\n".join(prompt_parts)
         
         st.session_state.prompt = prompt
-        append_to_experiment(st.session_state.api_client, st.session_state.exp_id, prompt)
-        message = "Wrote XPS reference measurement in experiment %s" % st.session_state.exp_name
+        entity_type = st.session_state.get('entity_type', 'experiments')
+        append_to_experiment(st.session_state.api_client, st.session_state.exp_id, prompt, entity_type=entity_type)
+        entry_label = 'experiment' if entity_type == 'experiments' else 'resource'
+        message = "Wrote XPS reference measurement in %s %s" % (entry_label, st.session_state.exp_name)
         if "chat_history" not in st.session_state:
             st.session_state["chat_history"] = []
         st.session_state["chat_history"].append(message)

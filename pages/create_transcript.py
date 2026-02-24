@@ -290,23 +290,26 @@ def get_timestamped_text_for_editing(show_relative=False):
 
 
 def upload_to_experiment(transcript_content, include_timestamps=False):
-    """Upload transcript to experiment using append_to_experiment function"""
+    """Upload transcript to experiment or item using append_to_experiment function"""
     try:
         # Check if we have the required session state variables
         if not hasattr(st.session_state, 'api_client'):
             st.error("❌ No API client found. Please ensure you're logged in to eLabFTW.")
             return False
-        
+
         if not hasattr(st.session_state, 'exp_id'):
-            st.error("❌ No experiment selected. Please select an experiment first.")
+            st.error("❌ No entry selected. Please select an experiment or resource first.")
             return False
-        
+
         if not hasattr(st.session_state, 'exp_name'):
-            st.error("❌ No experiment name found. Please select an experiment first.")
+            st.error("❌ No entry name found. Please select an experiment or resource first.")
             return False
-        
-        # Upload transcript to experiment
-        with st.spinner("Uploading transcript to experiment..."):
+
+        entity_type = st.session_state.get('entity_type', 'experiments')
+        entry_label = 'experiment' if entity_type == 'experiments' else 'resource'
+
+        # Upload transcript to entry
+        with st.spinner("Uploading transcript to %s..." % entry_label):
             if include_timestamps and transcript_content.strip():
                 # Parse timestamped transcription and upload each block separately
                 if '[' in transcript_content and ']' in transcript_content:
@@ -344,17 +347,17 @@ def upload_to_experiment(transcript_content, include_timestamps=False):
                                 formatted_timestamp = full_datetime.strftime('%Y-%m-%d %H:%M:%S.')
                                 
                                 # Upload with custom timestamp (no need to prefix in content)
-                                append_to_experiment(st.session_state.api_client, st.session_state.exp_id, text, custom_timestamp=formatted_timestamp)
-                        
+                                append_to_experiment(st.session_state.api_client, st.session_state.exp_id, text, custom_timestamp=formatted_timestamp, entity_type=entity_type)
+
                         except (ValueError, IndexError) as e:
                             # If parsing fails, skip this line
                             continue
                 else:
                     # No timestamps found, upload as plain text with current timestamp
-                    append_to_experiment(st.session_state.api_client, st.session_state.exp_id, transcript_content)
+                    append_to_experiment(st.session_state.api_client, st.session_state.exp_id, transcript_content, entity_type=entity_type)
             else:
                 # Upload plain text with current timestamp (default behavior)
-                append_to_experiment(st.session_state.api_client, st.session_state.exp_id, transcript_content)
+                append_to_experiment(st.session_state.api_client, st.session_state.exp_id, transcript_content, entity_type=entity_type)
         
         return True
         
@@ -782,7 +785,7 @@ def transcription_widget(key_suffix="", on_upload_callback=None, compact_mode=Fa
                             st.session_state[confirmation_key] = True
                             st.rerun()
                 else:
-                    st.warning("⚠️ No experiment selected.")
+                    st.warning("⚠️ No experiment or resource selected.")
                 
                 # Clear button
                 if st.button("🗑️ Clear", key=f"clear_trans{key_suffix}"):

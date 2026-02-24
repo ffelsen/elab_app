@@ -24,12 +24,15 @@ def chat_history_callback(transcript_text, include_timestamps):
     """Callback function to add transcript to chat history and eLabFTW"""
     if "chat_history" not in st.session_state:
         st.session_state["chat_history"] = []
-    
+
+    entity_type = st.session_state.get('entity_type', 'experiments')
+    entry_label = 'experiment' if entity_type == 'experiments' else 'resource'
+
     # Format message for chat history
     if include_timestamps:
-        message = f"Added timestamped transcription to experiment {st.session_state.exp_name}: {transcript_text[:100]}..."
+        message = f"Added timestamped transcription to {entry_label} {st.session_state.exp_name}: {transcript_text[:100]}..."
     else:
-        message = f"Added transcription to experiment {st.session_state.exp_name}: {transcript_text[:100]}..."
+        message = f"Added transcription to {entry_label} {st.session_state.exp_name}: {transcript_text[:100]}..."
     
     st.session_state["chat_history"].append(message)
     if len(st.session_state["chat_history"]) > 10: 
@@ -41,11 +44,13 @@ if "chat_history" not in st.session_state:
 
 exp_chat = st.expander("Chat mode")
 
-with exp_chat:     
+with exp_chat:
     prompt = st.chat_input("Add comment")
     if prompt:
-        append_to_experiment(st.session_state.api_client, st.session_state.exp_id, prompt)
-        message = "Wrote in experiment %s: %s"%(st.session_state.exp_name,prompt)
+        entity_type = st.session_state.get('entity_type', 'experiments')
+        append_to_experiment(st.session_state.api_client, st.session_state.exp_id, prompt, entity_type=entity_type)
+        entry_label = 'experiment' if entity_type == 'experiments' else 'resource'
+        message = "Wrote in %s %s: %s" % (entry_label, st.session_state.exp_name, prompt)
         st.session_state["chat_history"].append(message)
         if len(st.session_state["chat_history"]) > 10: 
             st.session_state["chat_history"] = st.session_state["chat_history"][-10:]

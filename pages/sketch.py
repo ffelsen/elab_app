@@ -54,16 +54,17 @@ if canvas_result.image_data is not None:
 if st.button('Upload drawing'):
     iid = uuid4()
     im = Image.fromarray(canvas_result.image_data)
-    
+
     # Create temp directory if it doesn't exist
     temp_dir = './temp'
     if not os.path.exists(temp_dir):
         os.makedirs(temp_dir)
-    
-    file_name = './temp/%s.png'%iid
+
+    file_name = './temp/%s.png' % iid
     im.save(file_name, "PNG")
-    upload_image(st.session_state.api_client, st.session_state.exp_id, file_name)
-    insert_image(st.session_state.api_client, st.session_state.exp_id, file_name.split('/')[-1])
+    entity_type = st.session_state.get('entity_type', 'experiments')
+    upload_image(st.session_state.api_client, st.session_state.exp_id, file_name, entity_type=entity_type)
+    insert_image(st.session_state.api_client, st.session_state.exp_id, file_name.split('/')[-1], entity_type=entity_type)
 #if canvas_result.json_data is not None:
 #    objects = pd.json_normalize(canvas_result.json_data["objects"])
 #    for col in objects.select_dtypes(include=["object"]).columns:
