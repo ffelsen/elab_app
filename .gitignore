@@ -201,6 +201,10 @@ secrets.json
 # Encrypted user key files (personal, never commit)
 keys/*.enc
 
+# YAML templates are personal/lab-specific — only the example is tracked
+templates/*.yaml
+!templates/example_all_options.yaml
+
 # Model cache (Whisper downloads large models)
 models/
 .cache/whisper/

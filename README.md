@@ -70,13 +70,43 @@ Select your short name from the dropdown, enter your PIN, and click **Log in**. 
 
 ---
 
+# Adding and editing templates
+
+Templates appear in the **Add comment → Template mode** dropdown. Two kinds coexist:
+
+## YAML templates (recommended for most cases)
+
+Create a `.yaml` file in the `templates/` folder — the app picks it up automatically on next start, no code changes needed. Use `templates/example_all_options.yaml` as your starting point; it documents every available field type with inline comments.
+
+Available field types:
+
+| `type` | Widget | Extra keys |
+|--------|--------|------------|
+| `number` | Numeric spinner | `units: [K, °C, ...]` — adds a unit selector |
+| `sci_number` | Free-text input | `units: [...]` — accepts `3e-10`, `1.5E-4`, etc. |
+| `select` | Dropdown | `options: [A, B, C]` — required |
+| `text` | Single-line input | `placeholder:` — optional hint text |
+| `textarea` | Multi-line input | `placeholder:` — optional hint text |
+
+In the `output:` string, write `{Label}` to insert a field value. For `number` and `sci_number` fields with units, the chosen unit is appended automatically (e.g. `{Temperature}` → `42.000 K`).
+
+YAML template files are **not synced with git** (excluded via `.gitignore`). Only `example_all_options.yaml` is tracked as a reference. This means each machine/user maintains their own set of templates.
+
+## Python templates (for complex logic)
+
+For templates that need conditional fields (e.g. spot size depending on excitation energy), add a `@st.dialog`-decorated function to `pages/templates.py`. Any function whose name contains `"template"` is discovered automatically.
+
+---
+
 # Implemented features
 
 * Encrypted per-user API key store (PIN-protected, Fernet/PBKDF2)
 * Automatic display-name and team lookup via `GET /users/me`
-* Creating new experiments
-* Adding comments to experiments in chat and template mode
-* Adding sketches to experiments
+* Team selection at login (with per-team experiment categories and access rights)
+* Creating new experiments and resources
+* Adding comments in chat and template mode
+* YAML-based user-defined templates (no coding required)
+* Adding sketches to entries
 * Transcribing spoken content with timestamps
 
 # To Do

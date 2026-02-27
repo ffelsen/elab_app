@@ -60,11 +60,25 @@ with exp_chat:
 
 
 exp_temp = st.expander("Template mode")
-temps = ['Choose a template',] + [i for i in dir(templates) if 'template' in i]
-with exp_temp:     
-    temp = st.selectbox('Choose a template', temps, key='selection')
+
+# ── Build unified template list ───────────────────────────────────────────────
+# Python templates: from the explicit registry in templates.py
+_py_templates = templates.PYTHON_TEMPLATES  # display name → function
+
+# YAML templates: loaded from the templates/ folder
+_yaml_templates = templates.load_yaml_templates()  # display name → dict
+
+_all_options = ['Choose a template'] + list(_py_templates.keys()) + list(_yaml_templates.keys())
+
+with exp_temp:
+    temp = st.selectbox('Choose a template', _all_options, key='selection')
     if temp != 'Choose a template':
-        getattr(templates, temp)()
+        if temp in _yaml_templates:
+            # Render via the generic YAML dialog
+            templates.yaml_template_dialog(_yaml_templates[temp])
+        else:
+            # Call the registered Python dialog function
+            _py_templates[temp]()
     if len(st.session_state['chat_history']) != 0:
         container = st.container(border=True)
         container.write('\n\n'.join(st.session_state["chat_history"]))

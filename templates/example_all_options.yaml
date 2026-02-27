@@ -1,0 +1,59 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# ElabFTW Logger — YAML template example
+# This file shows every available field type. Use it as a reference when
+# creating your own templates. Copy it, rename it (e.g. my_measurement.yaml),
+# fill in your fields, and the app will pick it up automatically on next start.
+#
+# Only this example file is tracked by git. All other .yaml files in this
+# folder are personal/lab-specific and are excluded via .gitignore.
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Displayed in the template dropdown in the app.
+name: Example — all field types
+
+fields:
+  # ── number ──────────────────────────────────────────────────────────────────
+  # A numeric spinner. Add `units` to show a unit selector next to it.
+  # In the output, {Label} expands to "42.000 K" (value + chosen unit).
+  - label: Temperature
+    type: number
+    units: [K, °C]
+
+  # ── sci_number ───────────────────────────────────────────────────────────────
+  # A free-text input that accepts scientific notation (e.g. 3e-10, 1.5E-4).
+  # Use this for values that span many orders of magnitude (pressures, etc.).
+  # In the output, {Label} expands to "3.00e-10 mbar" (value + chosen unit).
+  - label: Pressure
+    type: sci_number
+    units: [mbar, bar, Pa, torr]
+
+  # ── select ───────────────────────────────────────────────────────────────────
+  # A dropdown. `options` is required.
+  # In the output, {Label} expands to the chosen option string.
+  - label: Method
+    type: select
+    options: [XPS, UPS, AES, LEED]
+
+  # ── text ─────────────────────────────────────────────────────────────────────
+  # A single-line free-text input. `placeholder` is optional.
+  # In the output, {Label} expands to whatever the user typed.
+  - label: Sample
+    type: text
+    placeholder: e.g. TiO2 thin film on Si
+
+  # ── textarea ─────────────────────────────────────────────────────────────────
+  # A multi-line free-text box. `placeholder` is optional.
+  # In the output, {Label} expands to whatever the user typed.
+  - label: Notes
+    type: textarea
+    placeholder: Any additional observations, deviations from protocol, etc.
+
+# ── output ────────────────────────────────────────────────────────────────────
+# The text written into elabFTW. Use {Label} to insert field values.
+# For number/sci_number fields with units, the unit is included automatically.
+# Use | for a multi-line string (YAML block scalar).
+output: |
+  Method: {Method} — Sample: {Sample}
+  T = {Temperature}, p = {Pressure}
+
+  {Notes}

@@ -251,7 +251,11 @@ st.image("content/e-conversion_logo.png")
 
 fullname = st.session_state.get("fullname", "")
 team = st.session_state.get("team", "")
-st.info(f"Logged in as **{fullname}** · Team **{team}**")
+col_info, col_btn = st.columns([5, 1])
+col_info.info(f"Logged in as **{fullname}** · Team **{team}**")
+if col_btn.button("Log out", use_container_width=True):
+    st.session_state.clear()
+    st.rerun()
 
 # ── Page navigation ───────────────────────────────────────────────────────────
 

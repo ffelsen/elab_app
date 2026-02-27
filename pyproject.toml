@@ -23,4 +23,5 @@ dependencies = [
     "streamlit_drawable_canvas",
     "markdown>=3.10.2",
     "cryptography>=42.0.0",
+    "pyyaml>=6.0.3",
 ]
