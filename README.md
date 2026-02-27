@@ -20,10 +20,10 @@ or on Windows with:
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
-Install all Python dependencies (including `cryptography` for the key store):
+Make sure streamlit is installed as a tool:
 
 ```bash
-uv sync
+uv tool install streamlit
 ```
 
 ## 2. Host address
@@ -38,13 +38,14 @@ Update this constant once for your deployment — it applies to all users.
 
 ## 3. User accounts & API keys
 
-There is no shared key file anymore. Each user sets up their own encrypted credential on first use, directly inside the app (see **First-time login** below). No manual file editing is required.
+Each user sets up their own encrypted credential on first use, directly inside the app (see **First-time login** below). No manual file editing is required.
 
-Encrypted key files are stored locally in `keys/<short_name>.enc` and are excluded from version control via `.gitignore`. They are safe to keep on a shared machine because the API key is only decrypted in memory, and only after the correct PIN is entered.
+Encrypted key files are stored locally in `keys/<short_name>.enc` and are excluded from version control via `.gitignore`. They provide basic safety on a shared machine because the API key is only decrypted in memory, and only after the correct PIN is entered.
 
 ---
 
 # Running the app
+Run the app from the main depository folder including main.py by using uv and the streamlit tool installed.
 
 ```bash
 uv run -- streamlit run main.py
@@ -58,8 +59,8 @@ When no key file exists for a user, the app shows a setup dialog:
 
 1. **Short name** — choose a short, lowercase identifier (e.g. `alice`). This becomes the filename `keys/alice.enc`. The dropdown will list any existing users on the machine.
 2. **PIN** — a short passphrase that protects the encrypted file. You will type this every time you open the app.
-3. **elabFTW API key** — paste your personal API key (find it in elabFTW under **Profile → API Keys**). You only ever enter this once; after setup it is stored encrypted and never shown again.
-4. Click **Set up** — the app verifies the API key against elabFTW, saves the encrypted file, and confirms: *"You will write into elabFTW as Alice M."*
+3. **elabFTW API key** — paste your personal API key (find it in elabFTW under **User Panel → API KEYS**). You only ever enter this once; after setup it is stored encrypted and never shown again.
+4. Click **Set up** — the app verifies the API key against elabFTW, saves the encrypted file, and confirms: *"You will write into elabFTW as [elabFTW first and last name]"*
 
 To reset your account, simply delete `keys/<short_name>.enc` and go through setup again.
 

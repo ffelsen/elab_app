@@ -255,8 +255,8 @@ st.info(f"Logged in as **{fullname}** · Team **{team}**")
 
 # ── Page navigation ───────────────────────────────────────────────────────────
 
-main_page = st.Page("pages/main_page.py", title="Select experiment")
-page_2 = st.Page("pages/create_exp.py", title="Create new experiment")
+main_page = st.Page("pages/main_page.py", title="Open")
+page_2 = st.Page("pages/create_exp.py", title="Create")
 page_3 = st.Page("pages/comment.py", title="Add comment")
 page_4 = st.Page("pages/sketch.py", title="Add sketch")
 
