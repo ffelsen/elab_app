@@ -198,6 +198,9 @@ audio_temp/
 config.json
 secrets.json
 
+# Encrypted user key files (personal, never commit)
+keys/*.enc
+
 # Model cache (Whisper downloads large models)
 models/
 .cache/whisper/
