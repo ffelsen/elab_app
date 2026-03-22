@@ -86,27 +86,30 @@ def yaml_template_dialog(template: dict):
         key_base = f"_yaml_{template['name']}_{label}"
 
         if ftype == "number":
-            col_val, col_unit = (st.columns([2, 1]) if units else (st, None))
-            with col_val:
-                val = st.number_input(label, key=key_base)
-            if units and col_unit:
+            if units:
+                col_val, col_unit = st.columns([2, 1])
+                with col_val:
+                    val = st.number_input(label, key=key_base)
                 with col_unit:
                     unit = st.selectbox("Unit", units, key=key_base + "_unit",
                                         label_visibility="hidden")
                 values[label] = f"{val:.3f} {unit}"
             else:
+                val = st.number_input(label, key=key_base)
                 values[label] = f"{val:.3f}"
 
         elif ftype == "sci_number":
-            col_val, col_unit = (st.columns([2, 1]) if units else (st, None))
-            with col_val:
-                raw = st.text_input(label, placeholder="e.g. 3e-10",
-                                    key=key_base)
-            if units and col_unit:
+            if units:
+                col_val, col_unit = st.columns([2, 1])
+                with col_val:
+                    raw = st.text_input(label, placeholder="e.g. 3e-10",
+                                        key=key_base)
                 with col_unit:
                     unit = st.selectbox("Unit", units, key=key_base + "_unit",
                                         label_visibility="hidden")
             else:
+                raw = st.text_input(label, placeholder="e.g. 3e-10",
+                                    key=key_base)
                 unit = ""
             # Parse and reformat, fall back to raw string if unparseable
             try:
@@ -125,8 +128,17 @@ def yaml_template_dialog(template: dict):
             values[label] = val or ""
 
         else:  # default: text
-            val = st.text_input(label, placeholder=placeholder, key=key_base)
-            values[label] = val or ""
+            if units:
+                col_val, col_unit = st.columns([2, 1])
+                with col_val:
+                    val = st.text_input(label, placeholder=placeholder, key=key_base)
+                with col_unit:
+                    unit = st.selectbox("Unit", units, key=key_base + "_unit",
+                                        label_visibility="hidden")
+                values[label] = f"{val} {unit}".strip() if val else ""
+            else:
+                val = st.text_input(label, placeholder=placeholder, key=key_base)
+                values[label] = val or ""
 
     if st.button("Submit", on_click=reset):
         # Substitute {Label} placeholders in the output string
@@ -134,6 +146,7 @@ def yaml_template_dialog(template: dict):
         prompt = output_template
         for label, value in values.items():
             prompt = prompt.replace("{" + label + "}", value)
+        prompt = prompt.replace("\n", "  \n")  # preserve line breaks in Markdown → HTML
         st.session_state.prompt = prompt
         _append(prompt)
         st.rerun()

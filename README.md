@@ -36,6 +36,8 @@ ELAB_HOST = "https://your-elab-instance.example.com/api/v2"
 
 Update this constant once for your deployment — it applies to all users.
 
+The same host URL also appears in `pages/main_page.py` as the base for the **"Open eLabFTW entry"** link button, which opens the selected experiment or resource directly in the elabFTW web interface. Update that URL as well when changing hosts.
+
 ## 3. User accounts & API keys
 
 Each user sets up their own encrypted credential on first use, directly inside the app (see **First-time login** below). No manual file editing is required.

@@ -251,8 +251,14 @@ st.image("content/e-conversion_logo.png")
 
 fullname = st.session_state.get("fullname", "")
 team = st.session_state.get("team", "")
+exp_name = st.session_state.get("exp_name", "")
+entity_type = st.session_state.get("entity_type", "experiments")
+entry_label = "Experiment" if entity_type == "experiments" else "Resource"
+info_text = f"Logged in as **{fullname}** · Team **{team}**"
+if exp_name:
+    info_text += f" · {entry_label}: **{exp_name}**"
 col_info, col_btn = st.columns([5, 1])
-col_info.info(f"Logged in as **{fullname}** · Team **{team}**")
+col_info.info(info_text)
 if col_btn.button("Log out", use_container_width=True):
     st.session_state.clear()
     st.rerun()

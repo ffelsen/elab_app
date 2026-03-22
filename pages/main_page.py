@@ -33,7 +33,9 @@ if names == []:
     st.write('No %ss available. Create a new %s first!' % (entry_label, entry_label))
 else:
     label = 'Experiment title:' if entity_type == 'experiments' else 'Resource title:'
-    exp_name = st.selectbox(label, names, index=0)
+    saved_name = st.session_state.get('exp_name', '')
+    default_index = names.index(saved_name) if saved_name in names else 0
+    exp_name = st.selectbox(label, names, index=default_index)
     exp_id = ids[names.index(exp_name)]
 
     st.session_state['exp_name'] = exp_name
