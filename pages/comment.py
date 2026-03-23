@@ -48,7 +48,7 @@ with exp_chat:
     prompt = st.chat_input("Add comment")
     if prompt:
         entity_type = st.session_state.get('entity_type', 'experiments')
-        append_to_experiment(st.session_state.api_client, st.session_state.exp_id, prompt, entity_type=entity_type)
+        append_to_experiment(st.session_state.api_client, st.session_state.exp_id, prompt, entity_type=entity_type, initials=st.session_state.get('initials', ''))
         entry_label = 'experiment' if entity_type == 'experiments' else 'resource'
         message = "Wrote in %s %s: %s" % (entry_label, st.session_state.exp_name, prompt)
         st.session_state["chat_history"].append(message)

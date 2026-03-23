@@ -35,6 +35,7 @@ def _append(prompt: str):
         st.session_state.exp_id,
         prompt,
         entity_type=entity_type,
+        initials=st.session_state.get('initials', ''),
     )
     entry_label = 'experiment' if entity_type == 'experiments' else 'resource'
     message = "Wrote in %s %s: %s" % (entry_label, st.session_state.exp_name, prompt[:80])

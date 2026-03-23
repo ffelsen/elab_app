@@ -38,7 +38,7 @@ def append_to_experiment_old(api_client, exp_id, content):
     experimentsApi.patch_experiment(exp_id,body={'body':new_content})
     return True
 
-def append_to_experiment(api_client, exp_id, content, custom_timestamp=None, entity_type='experiments'):
+def append_to_experiment(api_client, exp_id, content, custom_timestamp=None, entity_type='experiments', initials=''):
     """Append a time stamped comment to an ElabFTW entry
     in a tabular format
 
@@ -48,6 +48,7 @@ def append_to_experiment(api_client, exp_id, content, custom_timestamp=None, ent
     content -- content to add to the line (str)
     custom_timestamp -- optional custom timestamp string (if None, uses current time)
     entity_type -- 'experiments' or 'items' (default: 'experiments')
+    initials -- user initials to record in the third column (default: '')
     """
 
     # Use custom timestamp if provided, otherwise use current time
@@ -71,12 +72,15 @@ def append_to_experiment(api_client, exp_id, content, custom_timestamp=None, ent
     line ='''<tr style="border-width:0px;">
     <td style="border-width:0px;">%s</td>
     <td style="border-width:0px;"> %s</td>
-    </tr>'''%(timestamp, content)
+    <td style="border-width:0px;">%s</td>
+    </tr>'''%(timestamp, content, initials)
+
+    current_content = current_content or ''  # handle None for newly created empty entries
 
     if not '<table' in current_content: # create a new table in the entry if there is none
 
         line = '\n'.join(['<table style="border-collapse:collapse;width:100%;border-width:0px;" border="1">',line,'</table>'])
-        new_content = '<br>\n'.join([current_content,line])
+        new_content = '<br>\n'.join([current_content,line]) if current_content else line
     else:
         index = current_content.find('</table>')
         new_content = current_content[:index]+line+'\n'+current_content[index:]

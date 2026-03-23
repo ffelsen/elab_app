@@ -26,7 +26,8 @@ filterwarnings("ignore")
 # ── Constants ────────────────────────────────────────────────────────────────
 
 KEYS_DIR = Path(__file__).parent / "keys"
-ELAB_HOST = "https://elabftw-qa-2024.zit.ph.tum.de/api/v2"
+# ELAB_HOST = "https://elabftw-qa-2024.zit.ph.tum.de/api/v2"
+ELAB_HOST = "https://elntest.ub.tum.de/api/v2"
 
 # Short name must be lowercase letters, digits, or underscores, starting with a letter
 _SHORT_NAME_RE = re.compile(r"^[a-z][a-z0-9_]*$")

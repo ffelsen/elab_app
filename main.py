@@ -26,9 +26,9 @@ def login_dialog():
     known_users = list_users()
     dropdown_options = known_users + ["+ New user"]
 
-    # ── Short name selector ──────────────────────────────────────────────────
+    # ── Initials selector ────────────────────────────────────────────────────
     selected = st.selectbox(
-        "Short name",
+        "Initials",
         options=dropdown_options,
         index=len(dropdown_options) - 1,  # default: "+ New user"
         key="_login_dropdown",
@@ -36,33 +36,33 @@ def login_dialog():
 
     if selected == "+ New user":
         short_name = st.text_input(
-            "Choose a short name",
-            placeholder="e.g. alice",
+            "Choose your initials",
+            placeholder="e.g. ljf",
             key="_login_shortname_input",
         )
     else:
         short_name = selected
         st.text_input(
-            "Short name",
+            "Initials",
             value=short_name,
             disabled=True,
             key="_login_shortname_display",
         )
 
-    # ── Live short-name feedback ─────────────────────────────────────────────
+    # ── Live initials feedback ───────────────────────────────────────────────
     is_new = selected == "+ New user"
 
     if short_name:
         if not is_valid_short_name(short_name):
             st.markdown(
-                ':red[Short name not valid — only use lowercase letters, '
+                ':red[Initials not valid — only use lowercase letters, '
                 'digits, and underscores (must start with a letter).]'
             )
             name_ok = False
         elif is_new and user_exists(short_name):
             st.markdown(
-                f':orange[Short name **{short_name}** already has a key file. '
-                'Select it from the dropdown to log in, or choose a different name.]'
+                f':orange[Initials **{short_name}** already have a key file. '
+                'Select them from the dropdown to log in, or choose different initials.]'
             )
             name_ok = False
         elif not is_new:
@@ -108,9 +108,9 @@ def login_dialog():
     # ── Log-in flow ──────────────────────────────────────────────────────────
     if login_clicked:
         if not short_name or not pin:
-            st.error("Please enter your short name and PIN.")
+            st.error("Please enter your initials and PIN.")
         elif not name_ok:
-            st.error("Please fix the short name first.")
+            st.error("Please fix the initials first.")
         else:
             try:
                 api_key = load_key(short_name, pin)
@@ -133,17 +133,17 @@ def login_dialog():
             # Dialogs cannot be nested, so we stage the credentials in session
             # state and rerun — the main script will open team_dialog next cycle.
             if len(info["teams"]) > 1:
-                st.session_state["_pending_login"] = {"api_key": api_key, "info": info}
+                st.session_state["_pending_login"] = {"api_key": api_key, "info": info, "short_name": short_name}
                 st.rerun()
             else:
                 team = info["teams"][0] if info["teams"] else {"id": 0, "name": ""}
-                _complete_login(api_key, info, team)
+                _complete_login(api_key, info, team, short_name)
 
     # ── Set-up flow ──────────────────────────────────────────────────────────
     if setup_clicked:
         errors = []
         if not name_ok or not short_name:
-            errors.append("Please provide a valid short name.")
+            errors.append("Please provide valid initials.")
         if not pin:
             errors.append("Please enter a PIN.")
         if not api_key_input:
@@ -167,18 +167,17 @@ def login_dialog():
                 st.error(f"Could not save key file: {e}")
                 st.stop()
 
-            # Confirm success before closing
             st.success(
-                f"You will write into elabFTW as **{info['fullname']}**. "
-                "Click **Continue** to proceed."
+                f"Set up! You will write into elabFTW as **{info['fullname']}**. "
+                "Logging you in…"
             )
-            if st.button("Continue", type="primary", key="_setup_confirm"):
-                if len(info["teams"]) > 1:
-                    st.session_state["_pending_login"] = {"api_key": api_key_input, "info": info}
-                    st.rerun()
-                else:
-                    team = info["teams"][0] if info["teams"] else {"id": 0, "name": ""}
-                    _complete_login(api_key_input, info, team)
+
+            if len(info["teams"]) > 1:
+                st.session_state["_pending_login"] = {"api_key": api_key_input, "info": info, "short_name": short_name}
+                st.rerun()
+            else:
+                team = info["teams"][0] if info["teams"] else {"id": 0, "name": ""}
+                _complete_login(api_key_input, info, team, short_name)
 
 
 @st.dialog("Select team")
@@ -211,11 +210,12 @@ def team_dialog(api_key: str, info: dict):
 
     if st.button("Continue", type="primary", key="_team_confirm", use_container_width=True):
         chosen = next(t for t in teams if t["name"] == chosen_name)
+        short_name = st.session_state.get("_pending_login", {}).get("short_name", "")
         st.session_state.pop("_pending_login", None)
-        _complete_login(api_key, info, chosen)
+        _complete_login(api_key, info, chosen, short_name)
 
 
-def _complete_login(api_key: str, info: dict, team: dict):
+def _complete_login(api_key: str, info: dict, team: dict, short_name: str = ""):
     """Store all login state in session and rerun to dismiss the dialog."""
     st.session_state["api_key"] = api_key
     st.session_state["api_client"] = build_api_client_from_session(api_key)
@@ -226,6 +226,7 @@ def _complete_login(api_key: str, info: dict, team: dict):
     st.session_state["teams"] = info["teams"]
     st.session_state["team"] = team["name"]
     st.session_state["team_id"] = team["id"]
+    st.session_state["initials"] = short_name
     st.session_state["prompt"] = None
     st.rerun()
 
