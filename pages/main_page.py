@@ -10,6 +10,7 @@ import datetime
 import json
 import os
 from utils import *
+from version import LOG_SCHEMA_VERSION
 
 
 @st.dialog('Download elabFTW entry')
@@ -84,3 +85,68 @@ else:
 
     entry = entries[names.index(exp_name)]
     st.markdown(get_exp_info(st.session_state.api_client, entry))
+
+    # ── elab-app log compatibility check ─────────────────────────────────────
+    compat = check_log_compatibility(entry.body)
+
+    # ── surface legacy / other-version tables regardless of main status ──────
+    if compat['legacy_tables']:
+        st.info(
+            f"ℹ️ {compat['legacy_tables']} legacy log table(s) found (no version identifier). "
+            "They will not be modified by the app. "
+            "You can migrate them manually by copying their rows into a CSV and using the CSV upload."
+        )
+    if compat['other_versions']:
+        st.info(
+            f"ℹ️ Log table(s) from a different schema version found: "
+            + ", ".join(compat['other_versions'])
+            + f" (current: {LOG_SCHEMA_VERSION}). They will not be modified."
+        )
+
+    if compat['status'] == 'no_table':
+        st.warning(
+            "⚠️ This entry does not yet contain an elab-app log table. "
+            "The first log you post will create it automatically.\n\n"
+            "If you want to create it manually (e.g. to migrate existing content), "
+            "paste the following HTML into the elabFTW source editor (**Tools → Source code**) and save:"
+        )
+        st.code(build_log_table([]), language='html')
+
+    elif compat['status'] == 'ok':
+        st.success(
+            f"✅ elab-app log table found ({LOG_SCHEMA_VERSION}) — "
+            f"{len(compat['rows'])} row(s), all valid."
+        )
+
+    elif compat['status'] == 'unordered':
+        initials = st.session_state.get('initials', '')
+        now_iso  = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+        detail = []
+        if compat['n_tables'] > 1:
+            detail.append(f"{compat['n_tables']} separate log tables (will be merged into one)")
+        if not compat['ordered']:
+            detail.append("not sorted newest-to-oldest")
+        st.warning(
+            f"⚠️ elab-app log found ({LOG_SCHEMA_VERSION}) — "
+            f"{len(compat['rows'])} row(s), all valid, but: " + "; ".join(detail) + "."
+        )
+        st.info(
+            "You can fix the order by uploading a one-line CSV on the **Add text logs** page "
+            "(CSV Upload section). Copy the line below:"
+        )
+        st.code(f'{now_iso},reordered table according to timestamp,{initials}', language='text')
+        if st.button("Fix order now", type="primary", key="fix_order_btn"):
+            reorder_row = (now_iso, 'reordered table according to timestamp', initials)
+            bulk_append_to_experiment(
+                st.session_state.api_client, exp_id, [reorder_row], entity_type=entity_type,
+            )
+            st.success("✅ Table reordered! Reload the page to confirm.")
+
+    else:  # 'warnings'
+        n_ok = len(compat['rows']) - len(compat['bad_rows'])
+        st.warning(
+            f"⚠️ elab-app log table found ({LOG_SCHEMA_VERSION}) — "
+            f"{len(compat['rows'])} row(s), {n_ok} valid, {len(compat['bad_rows'])} with issues:"
+        )
+        for idx, row, reason in compat['bad_rows']:
+            st.markdown(f"- **Row {idx}** (`{row[0]}` / `{row[2]}`): {reason}")

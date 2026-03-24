@@ -347,17 +347,17 @@ def upload_to_experiment(transcript_content, include_timestamps=False):
                                 formatted_timestamp = full_datetime.strftime('%Y-%m-%d %H:%M:%S.')
                                 
                                 # Upload with custom timestamp (no need to prefix in content)
-                                append_to_experiment(st.session_state.api_client, st.session_state.exp_id, text, custom_timestamp=formatted_timestamp, entity_type=entity_type, initials=st.session_state.get('initials', ''))
+                                _ = append_to_experiment(st.session_state.api_client, st.session_state.exp_id, text, custom_timestamp=formatted_timestamp, entity_type=entity_type, initials=st.session_state.get('initials', ''))
 
                         except (ValueError, IndexError) as e:
                             # If parsing fails, skip this line
                             continue
                 else:
                     # No timestamps found, upload as plain text with current timestamp
-                    append_to_experiment(st.session_state.api_client, st.session_state.exp_id, transcript_content, entity_type=entity_type, initials=st.session_state.get('initials', ''))
+                    _ = append_to_experiment(st.session_state.api_client, st.session_state.exp_id, transcript_content, entity_type=entity_type, initials=st.session_state.get('initials', ''))
             else:
                 # Upload plain text with current timestamp (default behavior)
-                append_to_experiment(st.session_state.api_client, st.session_state.exp_id, transcript_content, entity_type=entity_type, initials=st.session_state.get('initials', ''))
+                _ = append_to_experiment(st.session_state.api_client, st.session_state.exp_id, transcript_content, entity_type=entity_type, initials=st.session_state.get('initials', ''))
         
         return True
         

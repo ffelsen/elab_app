@@ -38,8 +38,12 @@ PBKDF2_ITERATIONS = 480_000  # OWASP 2023 recommendation for PBKDF2-HMAC-SHA256
 # ── Validation ───────────────────────────────────────────────────────────────
 
 def is_valid_short_name(name: str) -> bool:
-    """Return True if *name* matches the short-name rules."""
-    return bool(_SHORT_NAME_RE.match(name))
+    """Return True if *name* matches the short-name rules.
+
+    Rules: lowercase letters, digits, underscores; must start with a letter;
+    maximum 6 characters.
+    """
+    return bool(_SHORT_NAME_RE.match(name)) and len(name) <= 6
 
 
 # ── Key-file helpers ─────────────────────────────────────────────────────────

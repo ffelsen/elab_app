@@ -28,7 +28,7 @@ def reset():
 
 
 def _append(prompt: str):
-    """Write *prompt* to the current elabFTW entry and update chat history."""
+    """Write *prompt* to the current elabFTW entry."""
     entity_type = st.session_state.get('entity_type', 'experiments')
     append_to_experiment(
         st.session_state.api_client,

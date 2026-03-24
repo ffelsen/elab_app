@@ -56,7 +56,7 @@ def login_dialog():
         if not is_valid_short_name(short_name):
             st.markdown(
                 ':red[Initials not valid — only use lowercase letters, '
-                'digits, and underscores (must start with a letter).]'
+                'digits, and underscores (must start with a letter, max 6 characters).]'
             )
             name_ok = False
         elif is_new and user_exists(short_name):
@@ -267,7 +267,7 @@ if col_btn.button("Log out", use_container_width=True):
 # ── Page navigation ───────────────────────────────────────────────────────────
 
 main_page = st.Page("pages/main_page.py", title="Open")
-page_3 = st.Page("pages/comment.py", title="Add comment")
+page_3 = st.Page("pages/comment.py", title="Add text logs")
 page_4 = st.Page("pages/sketch.py", title="Add sketch")
 
 pg = st.navigation([main_page, page_3, page_4])
