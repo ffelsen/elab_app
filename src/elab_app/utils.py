@@ -6,6 +6,13 @@ import datetime
 from PIL import Image
 import markdown as md
 
+def _attr(obj, key):
+    """Read *key* from either an object (attribute) or a dict — handles both
+    elabapi_python >=5.5 (returns dicts) and <5.3 (returns model objects)."""
+    if isinstance(obj, dict):
+        return obj.get(key)
+    return getattr(obj, key, None)
+
 def append_to_experiment_old(api_client, exp_id, content):
     """Append a time stamped comment to an ElabFTW entry
 
@@ -29,7 +36,7 @@ def append_to_experiment_old(api_client, exp_id, content):
     # initialize experiments api
     experimentsApi = elabapi_python.ExperimentsApi(api_client)
     # upload new content
-    experimentsApi.patch_experiment(exp_id,body={'body':new_content})
+    experimentsApi.patch_experiment(body={'body': new_content}, id=exp_id)
     return True
 
 def append_to_experiment(api_client, exp_id, content, custom_timestamp=None, entity_type='experiments', initials=''):
@@ -67,9 +74,9 @@ def append_to_experiment(api_client, exp_id, content, custom_timestamp=None, ent
 
     # patch the entry
     if entity_type == 'items':
-        elabapi_python.ItemsApi(api_client).patch_item(exp_id, body={'body': new_content})
+        elabapi_python.ItemsApi(api_client).patch_item(body={'body': new_content}, id=exp_id)
     else:
-        elabapi_python.ExperimentsApi(api_client).patch_experiment(exp_id, body={'body': new_content})
+        elabapi_python.ExperimentsApi(api_client).patch_experiment(body={'body': new_content}, id=exp_id)
 
     # mirror any elabFTW internal links in the log text as proper database links
     _create_links_from_html(api_client, entity_type, exp_id, content_html)
@@ -211,9 +218,9 @@ def create_item(api_client, name, comment='', catid=0):
     itemsApi.post_item(body={'category': catid})
     names, ids, items = get_items(api_client)
     item_id = ids[names.index('Untitled')]
-    itemsApi.patch_item(item_id, body={'title': name})
+    itemsApi.patch_item(body={'title': name}, id=item_id)
     if comment != '':
-        itemsApi.patch_item(item_id, body={'body': comment})
+        itemsApi.patch_item(body={'body': comment}, id=item_id)
     return True
 
 def get_resource_categories(api_client):
@@ -243,10 +250,10 @@ def create_experiment(api_client, name, comment='', catid = 0):
     experimentsApi.post_experiment()
     names, ids, exps = get_experiments(api_client)
     exp_id = ids[names.index('Untitled')]
-    experimentsApi.patch_experiment(exp_id, body={'title':name})
+    experimentsApi.patch_experiment(body={'title': name}, id=exp_id)
     if comment != '':
-        experimentsApi.patch_experiment(exp_id, body={'body':comment})
-    experimentsApi.patch_experiment(exp_id, body={'category':catid})
+        experimentsApi.patch_experiment(body={'body': comment}, id=exp_id)
+    experimentsApi.patch_experiment(body={'category': catid}, id=exp_id)
 
     return True
 
@@ -264,27 +271,26 @@ def get_user_id(api_client, fn, ln):
     uapi = elabapi_python.UsersApi(api_client)
     users = uapi.read_users()
     for u in users:
-        if u.fullname == ' '.join([fn,ln]):
-            return u.userid
-    else:
-        print('User %s %s does not exist!'%(fn,ln))
-        return None
+        if _attr(u, 'fullname') == ' '.join([fn, ln]):
+            return _attr(u, 'userid')
+    print('User %s %s does not exist!' % (fn, ln))
+    return None
 
 def get_teams(api_client, userid):
-    """get the ids and names of teams the current user 
-    is assigned to 
-    
+    """get the ids and names of teams the current user
+    is assigned to
+
     Keyword arguments:
     api_client -- elabapi_python api_client instance
     userid -- id of the user
-     
+
     Returns:
-    [t.id for t in u.teams] -- ids of the teams 
-    [t.name for t in u.teams] -- names of the teams 
+    ids   -- list of team ids
+    names -- list of team names
     """
-    uapi = elabapi_python.UsersApi(api_client)
-    u = uapi.read_user(userid)
-    return [t.id for t in u.teams], [t.name for t in u.teams] 
+    tapi = elabapi_python.TeamsApi(api_client)
+    teams = tapi.read_teams() or []
+    return [_attr(t, 'id') for t in teams], [_attr(t, 'name') for t in teams]
 
 def get_categories(api_client, team_id):
     """get all experiment categories available to 
@@ -319,8 +325,8 @@ def get_name(api_client, userid):
     uapi = elabapi_python.UsersApi(api_client)
     users = uapi.read_users()
     for u in users:
-        if u.userid == userid:
-            return u.fullname
+        if _attr(u, 'userid') == userid:
+            return _attr(u, 'fullname')
     return False
 
 # ── Log-table helpers ─────────────────────────────────────────────────────────
@@ -506,9 +512,9 @@ def bulk_append_to_experiment(api_client, exp_id, new_rows, entity_type='experim
     new_content, inserted, skipped, _ = _consolidate(current_content, new_rows)
 
     if entity_type == 'items':
-        elabapi_python.ItemsApi(api_client).patch_item(exp_id, body={'body': new_content})
+        elabapi_python.ItemsApi(api_client).patch_item(body={'body': new_content}, id=exp_id)
     else:
-        elabapi_python.ExperimentsApi(api_client).patch_experiment(exp_id, body={'body': new_content})
+        elabapi_python.ExperimentsApi(api_client).patch_experiment(body={'body': new_content}, id=exp_id)
 
     # append inserted rows to session log
     if inserted > 0:

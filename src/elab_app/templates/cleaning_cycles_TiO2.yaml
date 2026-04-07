@@ -1,0 +1,40 @@
+name: Cleaning cycles TiO2
+fields:
+  - label: Number of cycles set
+    type: number
+    unit: [cycle(s)]
+  - label: Temperature Control
+    type: select
+    options: [Thermocouple, Filament]
+  - label: Ar Sputtering - Pressure
+    type: sci_number
+    units: [mbar, torr]
+  - label: Ar Sputtering - Voltage
+    type: number
+    units: [keV, eV]
+  - label: Ar Sputtering - Duration
+    type: number
+    units: [min, s]
+  - label: O2 Anneal 1 - Pressure
+    type: sci_number
+    units: [mbar, torr]
+  - label: O2 Anneal 1 - Temperature / Emission
+    type: number
+    units: [K, °C, mA]
+  - label: O2 Anneal 1 - Duration
+    type: number
+    units: [min, s]
+  - label: O2 Anneal 2 - Pressure
+    type: sci_number
+    units: [mbar, torr]
+  - label: O2 Anneal 2 - Temperature / Emission
+    type: number
+    units: [K, °C, mA]
+  - label: O2 Anneal 2 - Duration
+    type: number
+    units: [min, s]
+output:
+  Set {Number of cycles set} with {Temperature Control} control.
+  Sputtering in {Ar Sputtering - Pressure} Ar at {Ar Sputtering - Voltage} for {Ar Sputtering - Duration}.
+  First O2 anneal in {O2 Anneal 1 - Pressure} at {O2 Anneal 1 - Temperature / Emission} for {O2 Anneal 1 - Temperature / Emission}.
+  Second O2 anneal in {O2 Anneal 2 - Pressure} at {O2 Anneal 2 - Temperature / Emission} for {O2 Anneal 2 - Temperature / Emission}.

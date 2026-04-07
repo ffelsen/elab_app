@@ -11,6 +11,7 @@ so the raw API key is never stored on disk in plaintext.
 
 import os
 import re
+import tomllib
 from pathlib import Path
 
 from cryptography.fernet import Fernet, InvalidToken
@@ -19,15 +20,29 @@ from cryptography.hazmat.primitives import hashes
 import base64
 
 import elabapi_python
+from platformdirs import user_config_dir
 from warnings import filterwarnings
 
 filterwarnings("ignore")
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
-KEYS_DIR = Path(__file__).parent / "keys"
-# ELAB_HOST = "https://elabftw-qa-2024.zit.ph.tum.de/api/v2"
-ELAB_HOST = "https://eln.ub.tum.de/api/v2"
+_CONFIG_DIR = Path(user_config_dir("elab_app"))
+KEYS_DIR = _CONFIG_DIR / "keys"
+KEYS_DIR.mkdir(parents=True, exist_ok=True)
+
+_DEFAULT_HOST = "https://eln.ub.tum.de/api/v2"
+
+
+def _get_elab_host() -> str:
+    cfg_file = _CONFIG_DIR / "config.toml"
+    if cfg_file.exists():
+        with open(cfg_file, "rb") as f:
+            return tomllib.load(f).get("elab_host", _DEFAULT_HOST)
+    return _DEFAULT_HOST
+
+
+ELAB_HOST = _get_elab_host()
 
 # Short name must be lowercase letters, digits, or underscores, starting with a letter
 _SHORT_NAME_RE = re.compile(r"^[a-z][a-z0-9_]*$")
@@ -50,7 +65,7 @@ def is_valid_short_name(name: str) -> bool:
 
 def list_users() -> list[str]:
     """Return a sorted list of short names that have an encrypted key file."""
-    KEYS_DIR.mkdir(exist_ok=True)
+    KEYS_DIR.mkdir(parents=True, exist_ok=True)
     return sorted(p.stem for p in KEYS_DIR.glob("*.enc"))
 
 
@@ -87,7 +102,7 @@ def save_key(short_name: str, pin: str, api_key: str) -> None:
     """
     if not is_valid_short_name(short_name):
         raise ValueError(f"Invalid short name: {short_name!r}")
-    KEYS_DIR.mkdir(exist_ok=True)
+    KEYS_DIR.mkdir(parents=True, exist_ok=True)
     salt = os.urandom(16)
     fernet_key = _derive_fernet_key(pin, salt)
     f = Fernet(fernet_key)
@@ -152,15 +167,22 @@ def fetch_user_info(api_key: str) -> dict:
     elabapi_python.rest.ApiException
         On authentication failure or network error.
     """
+    import json as _json
     client = _make_api_client(api_key)
     uapi = elabapi_python.UsersApi(client)
-    me = uapi.read_user("me")
-    teams = [{"id": t.id, "name": t.name} for t in (me.teams or [])]
+
+    # Fetch the raw JSON response so we always get the 'teams' field regardless
+    # of which elabapi_python version is installed (5.5+ dropped it from the
+    # model, but the API still returns it for the user's own teams).
+    raw_response = uapi.read_user("me", _preload_content=False)
+    me = _json.loads(raw_response.data)
+
+    teams = [{"id": t["id"], "name": t["name"]} for t in (me.get("teams") or [])]
     return {
-        "fullname": me.fullname,
-        "firstname": me.firstname,
-        "lastname": me.lastname,
-        "userid": me.userid,
+        "fullname": me["fullname"],
+        "firstname": me["firstname"],
+        "lastname": me["lastname"],
+        "userid": me["userid"],
         "teams": teams,
     }
 

@@ -13,6 +13,7 @@ from pathlib import Path
 
 import streamlit as st
 import yaml
+from platformdirs import user_config_dir
 from warnings import filterwarnings
 from utils import append_to_experiment
 
@@ -46,7 +47,7 @@ def _append(prompt: str):
 
 # ── YAML loader ───────────────────────────────────────────────────────────────
 
-TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
+TEMPLATES_DIR = Path(user_config_dir("elab_app")) / "templates"
 
 
 def load_yaml_templates() -> dict[str, dict]:

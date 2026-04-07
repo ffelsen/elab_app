@@ -6,12 +6,26 @@ import elabapi_python
 import datetime
 import json
 import os
+import tomllib
+from pathlib import Path
 from utils import (
     get_experiments, get_items, build_log_table, parse_log_rows,
     get_exp_info, check_log_compatibility, bulk_append_to_experiment,
     _find_all_log_tables,
 )
 from version import LOG_SCHEMA_VERSION
+from platformdirs import user_config_dir
+
+
+def _get_elab_base_url() -> str:
+    cfg_file = Path(user_config_dir("elab_app")) / "config.toml"
+    default = "https://eln.ub.tum.de/api/v2"
+    if cfg_file.exists():
+        with open(cfg_file, "rb") as f:
+            host = tomllib.load(f).get("elab_host", default)
+    else:
+        host = default
+    return host.replace("/api/v2", "")
 
 
 @st.dialog('Download elabFTW entry')
@@ -243,8 +257,7 @@ else:
 
     col_open, col_dl = st.columns(2)
     col_open.link_button('Open eLabFTW entry',
-                        #  url='https://elabftw-qa-2024.zit.ph.tum.de/%s?mode=view&id=%i' % (page_base, exp_id),
-                         url='https://eln.ub.tum.de/%s?mode=view&id=%i' % (page_base, exp_id),
+                         url='%s/%s?mode=view&id=%i' % (_get_elab_base_url(), page_base, exp_id),
                          use_container_width=True)
     if col_dl.button('Download elabFTW entry', use_container_width=True):
         download_dialog(exp_id, exp_name, entity_type)

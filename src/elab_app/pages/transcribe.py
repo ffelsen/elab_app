@@ -5,7 +5,7 @@ Usage:
     python -m demo.transcribe
 """
 
-import os
+import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
 from queue import Queue
@@ -17,9 +17,12 @@ import torch
 import typer
 import whisper
 
+_TEMP_DIR = Path(tempfile.gettempdir()) / "elab_app"
+_TEMP_DIR.mkdir(exist_ok=True)
+
 
 def check_for_stop_signal():
-    return os.path.exists("stop_signal.txt")
+    return (_TEMP_DIR / "stop_signal.txt").exists()
 
 
 def main(
@@ -222,14 +225,15 @@ def main(
         except Exception:
             pass
 
-        if os.path.exists("stop_signal.txt"):
-            os.remove("stop_signal.txt")  # Clean up the signal file on exit
+        _stop = _TEMP_DIR / "stop_signal.txt"
+        if _stop.exists():
+            _stop.unlink()  # Clean up the signal file on exit
 
 
 def write_transcription_with_timestamps(transcription_data, initial_message="Model loaded & listening\n"):
     """Write transcription data with timestamps to file"""
     try:
-        with Path("temp/transcription_output.txt").open("w", encoding="utf-8") as file:
+        with (_TEMP_DIR / "transcription_output.txt").open("w", encoding="utf-8") as file:
             file.write(initial_message)
             
             if transcription_data:

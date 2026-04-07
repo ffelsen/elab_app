@@ -1,0 +1,39 @@
+name: Bake start
+fields:
+  - label: Reason
+    type: text
+    placeholder: e.g. Changed the filament on the Prep manipulator
+  - label: Chamber
+    type: select
+    options: [Prep, STM, Prep & STM]
+  - label: Starting Pressure
+    type: sci_number
+    units: [mbar, torr]
+  - label: Starting time
+    type: textarea
+    placeholder: 2026-01-30 12:30
+  - label: Highest Temperature Prep
+    type: number
+    units: [°C, K]
+  - label: Pressure at Highest Temperature Prep
+    type: sci_number
+    units: [mbar, torr]
+  - label: Time at Highest Temperature Prep
+    type: textarea
+    placeholder: 2026-01-30 12:30
+  - label: Highest Temperature STM
+    type: number
+    units: [°C, K]
+  - label: Pressure at Highest Temperature STM
+    type: sci_number
+    units: [mbar, torr]
+  - label: Time at Highest Temperature STM
+    type: textarea
+    placeholder: 2026-01-30 12:30
+  - label: Notes
+    type: textarea
+    placeholder: Any additional observations, deviations from protocol, etc.
+output: |
+  Bake in {Chamber} due to {Reason}, starting on {Starting time}.
+  Prep chamber reached {Highest Temperature Prep} with {Pressure at Highest Temperature Prep} at {Time at Highest Temperature Prep}.
+  STM chamber reached {Highest Temperature Prep} with {Pressure at Highest Temperature Prep} at {Time at Highest Temperature Prep}.

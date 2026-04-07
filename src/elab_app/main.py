@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import streamlit as st
 from warnings import filterwarnings
 
@@ -13,7 +15,8 @@ from auth import (
 
 filterwarnings("ignore")
 
-st.logo("./content/logo.png", size="large")
+_HERE = Path(__file__).parent
+st.logo(str(_HERE / "content" / "logo.png"), size="large")
 
 st.set_page_config(page_title="ElabFTW Logger")
 
@@ -248,7 +251,7 @@ if "api_client" not in st.session_state:
 # ── Logged-in header ──────────────────────────────────────────────────────────
 
 st.write("# Welcome to the ElabFTW log app!")
-st.image("content/e-conversion_logo.png")
+st.image(str(_HERE / "content" / "e-conversion_logo.png"))
 
 fullname = st.session_state.get("fullname", "")
 team = st.session_state.get("team", "")

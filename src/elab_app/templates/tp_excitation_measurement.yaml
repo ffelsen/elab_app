@@ -1,0 +1,19 @@
+name: T/p/Excitation Measurement
+fields:
+  - label: Temperature
+    type: number
+    units: [K, °C]
+  - label: Pressure
+    type: number
+    units: [bar, torr, PSI]
+  - label: Excitation wavelength
+    type: number
+    units: [nm, cm⁻¹, eV]
+  - label: Comment
+    type: text
+output: |
+  Measured at T = {Temperature} and p = {Pressure}
+
+  Excited at {Excitation wavelength}
+
+  {Comment}

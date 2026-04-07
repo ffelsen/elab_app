@@ -1,10 +1,14 @@
 import streamlit as st
-import os
+import tempfile
+from pathlib import Path
 from warnings import filterwarnings
 from PIL import Image
 from uuid import uuid4
 from streamlit_drawable_canvas import st_canvas
 from utils import upload_image, insert_image
+
+_TEMP_DIR = Path(tempfile.gettempdir()) / "elab_app"
+_TEMP_DIR.mkdir(exist_ok=True)
 
 filterwarnings('ignore')
 
@@ -32,7 +36,7 @@ canvas_result = st_canvas(
     background_color=bg_color,
     background_image=Image.open(bg_image) if bg_image else None,
     update_streamlit=realtime_update,
-    height=150,
+    height=300,
     drawing_mode=drawing_mode,
     point_display_radius=point_display_radius if drawing_mode == "point" else 0,
     display_toolbar=st.sidebar.checkbox("Display toolbar", True),
@@ -47,16 +51,12 @@ if st.button('Upload drawing'):
     iid = uuid4()
     im = Image.fromarray(canvas_result.image_data)
 
-    # Create temp directory if it doesn't exist
-    temp_dir = './temp'
-    if not os.path.exists(temp_dir):
-        os.makedirs(temp_dir)
-
-    file_name = './temp/%s.png' % iid
-    im.save(file_name, "PNG")
+    file_path = _TEMP_DIR / f"{iid}.png"
+    im.save(file_path, "PNG")
     entity_type = st.session_state.get('entity_type', 'experiments')
-    upload_image(st.session_state.api_client, st.session_state.exp_id, file_name, entity_type=entity_type)
-    insert_image(st.session_state.api_client, st.session_state.exp_id, file_name.split('/')[-1], entity_type=entity_type)
+    initials = st.session_state.get('initials', '')
+    upload_image(st.session_state.api_client, st.session_state.exp_id, str(file_path), entity_type=entity_type)
+    insert_image(st.session_state.api_client, st.session_state.exp_id, file_path.name, entity_type=entity_type, initials=initials)
 #if canvas_result.json_data is not None:
 #    objects = pd.json_normalize(canvas_result.json_data["objects"])
 #    for col in objects.select_dtypes(include=["object"]).columns:

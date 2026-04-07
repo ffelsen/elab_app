@@ -12,9 +12,10 @@ from utils import append_to_experiment
 from auth import ELAB_HOST
 from components.hashtag_textarea import hashtag_textarea
 
-_BASE_URL = ELAB_HOST.replace('/api/v2', '')
 _TEMP_DIR = Path(tempfile.gettempdir()) / "elab_app"
 _TEMP_DIR.mkdir(exist_ok=True)
+
+_BASE_URL = ELAB_HOST.replace('/api/v2', '')
 
 hide_stale_elements = """
 <style>
@@ -26,7 +27,7 @@ div[data-stale="true"] {
 
 
 def send_stop_signal():
-    with Path("stop_signal.txt").open("w") as f:
+    with (_TEMP_DIR / "stop_signal.txt").open("w") as f:
         print("Sending stop signal")
         f.write("stop")
 
@@ -34,32 +35,28 @@ def send_stop_signal():
 def save_default_microphone(mic_tuple, key_suffix=""):
     """Save default microphone setting to local file"""
     try:
-        # Ensure temp directory exists
-        temp_dir = Path("temp")
-        temp_dir.mkdir(exist_ok=True)
-
         # Load existing settings or create new
-        settings_file = temp_dir / "default_microphone.json"
+        settings_file = _TEMP_DIR / "default_microphone.json"
         settings = {}
-
+        
         if settings_file.exists():
             try:
                 with settings_file.open("r", encoding="utf-8") as f:
                     settings = json.load(f)
             except (json.JSONDecodeError, Exception):
                 settings = {}
-
+        
         # Save microphone setting with key_suffix for different contexts
         settings[f"default_mic{key_suffix}"] = {
             "mic_id": mic_tuple[0],
             "mic_name": mic_tuple[1],
             "saved_at": datetime.now().isoformat()
         }
-
+        
         # Write settings back to file
         with settings_file.open("w", encoding="utf-8") as f:
             json.dump(settings, f, indent=2)
-
+            
         return True
     except Exception:
         # Silently handle errors to avoid breaking the app
@@ -69,18 +66,18 @@ def save_default_microphone(mic_tuple, key_suffix=""):
 def load_default_microphone(key_suffix=""):
     """Load default microphone setting from local file"""
     try:
-        settings_file = Path("temp/default_microphone.json")
+        settings_file = _TEMP_DIR / "default_microphone.json"
         if not settings_file.exists():
             return None
-
+            
         with settings_file.open("r", encoding="utf-8") as f:
             settings = json.load(f)
-
+            
         setting_key = f"default_mic{key_suffix}"
         if setting_key in settings:
             mic_data = settings[setting_key]
             return (mic_data["mic_id"], mic_data["mic_name"])
-
+            
         return None
     except Exception:
         return None
@@ -117,10 +114,10 @@ def clear_transcription_file():
     """Clear the contents of the transcription file for data protection"""
     try:
         # Opening in 'w' mode truncates the file
-        with Path("temp/transcription_output.txt").open("w"):
+        with (_TEMP_DIR / "transcription_output.txt").open("w"):
             pass
         # Also clear any stop signal files
-        stop_signal_file = Path("stop_signal.txt")
+        stop_signal_file = _TEMP_DIR / "stop_signal.txt"
         if stop_signal_file.exists():
             stop_signal_file.unlink()
     except Exception:
@@ -133,16 +130,16 @@ def cleanup_transcription_data():
     try:
         # Clear transcription file
         clear_transcription_file()
-
+        
         # Clean up any temporary session state data
         keys_to_remove = []
         for key in st.session_state.keys():
             if isinstance(key, str) and ('transcription_editor' in key or 'transcribing' in key):
                 keys_to_remove.append(key)
-
+        
         for key in keys_to_remove:
             del st.session_state[key]
-
+            
     except Exception:
         # Silently handle errors to avoid breaking the app
         pass
@@ -150,7 +147,7 @@ def cleanup_transcription_data():
 
 def load_transcription():
     try:
-        transcription_file = Path("temp/transcription_output.txt")
+        transcription_file = _TEMP_DIR / "transcription_output.txt"
         if transcription_file.exists() and transcription_file.stat().st_size > 0:
             with transcription_file.open("r", encoding="utf-8") as file:
                 content = file.read().strip()
@@ -164,33 +161,33 @@ def load_transcription():
 def load_transcription_with_formatting(show_relative=False):
     """Load transcription and format it for display with timestamps"""
     try:
-        transcription_file = Path("temp/transcription_output.txt")
+        transcription_file = _TEMP_DIR / "transcription_output.txt"
         if transcription_file.exists() and transcription_file.stat().st_size > 0:
             with transcription_file.open("r", encoding="utf-8") as file:
                 content = file.read().strip()
-
+                
                 if not content or content == "Model loaded & listening":
                     return "", ""
-
+                
                 # Split into timestamped and plain text sections
                 if "=== TIMESTAMPED TRANSCRIPTION ===" in content:
                     parts = content.split("=== TIMESTAMPED TRANSCRIPTION ===")
                     if len(parts) > 1:
                         timestamped_section = parts[1].split("=== PLAIN TEXT ===")[0].strip()
-
+                        
                         # Format timestamped content for better display
                         formatted_content = format_timestamped_content(timestamped_section, show_relative)
-
+                        
                         # Get plain text for editing
                         if "=== PLAIN TEXT ===" in content:
                             plain_text = content.split("=== PLAIN TEXT ===")[1].strip()
                         else:
                             plain_text = timestamped_section
-
+                        
                         return formatted_content, plain_text
-
+                
                 return content, content
-
+        
         return "", ""
     except Exception as e:
         st.error(f"Error reading transcription file: {e}")
@@ -201,10 +198,10 @@ def format_timestamped_content(timestamped_text, show_relative=False):
     """Format timestamped content for better UI display"""
     if not timestamped_text:
         return ""
-
+    
     lines = timestamped_text.split('\n')
     formatted_lines = []
-
+    
     for line in lines:
         line = line.strip()
         if line and line.startswith('['):
@@ -216,7 +213,7 @@ def format_timestamped_content(timestamped_text, show_relative=False):
                     real_time = parts[0][1:]  # Remove opening [
                     relative_time = parts[1][1:]  # Remove opening [
                     text = parts[2]
-
+                    
                     # Create styled timestamp line with optional relative time
                     if show_relative:
                         formatted_line = f"""<div style="margin-bottom: 8px;">
@@ -234,7 +231,7 @@ def format_timestamped_content(timestamped_text, show_relative=False):
                     formatted_lines.append(f"<div style='margin-bottom: 5px; color: #ffffff;'>{line}</div>")
             except Exception:
                 formatted_lines.append(f"<div style='margin-bottom: 5px; color: #ffffff;'>{line}</div>")
-
+    
     # Return properly wrapped content without extra closing tags
     return ''.join(formatted_lines)
 
@@ -242,7 +239,7 @@ def format_timestamped_content(timestamped_text, show_relative=False):
 def check_model_ready():
     """Check if the model is ready by looking for the 'Model loaded & listening' message"""
     try:
-        transcription_file = Path("temp/transcription_output.txt")
+        transcription_file = _TEMP_DIR / "transcription_output.txt"
         if transcription_file.exists() and transcription_file.stat().st_size > 0:
             with transcription_file.open("r", encoding="utf-8") as file:
                 content = file.read()
@@ -255,17 +252,17 @@ def check_model_ready():
 def get_timestamped_text_for_editing(show_relative=False):
     """Get timestamped transcription in a format suitable for editing"""
     try:
-        transcription_file = Path("temp/transcription_output.txt")
+        transcription_file = _TEMP_DIR / "transcription_output.txt"
         if transcription_file.exists() and transcription_file.stat().st_size > 0:
             with transcription_file.open("r", encoding="utf-8") as file:
                 content = file.read().strip()
-
+                
                 # Extract timestamped section
                 if "=== TIMESTAMPED TRANSCRIPTION ===" in content:
                     parts = content.split("=== TIMESTAMPED TRANSCRIPTION ===")
                     if len(parts) > 1:
                         timestamped_section = parts[1].split("=== PLAIN TEXT ===")[0].strip()
-
+                        
                         # If user doesn't want relative timestamps, remove them
                         if not show_relative:
                             formatted_lines = []
@@ -288,7 +285,7 @@ def get_timestamped_text_for_editing(show_relative=False):
                             return '\n'.join(formatted_lines)
                         else:
                             return timestamped_section
-
+                
         return ""
     except Exception as e:
         st.error(f"Error reading timestamped transcription: {e}")
@@ -320,18 +317,18 @@ def upload_to_experiment(transcript_content, include_timestamps=False):
                 # Parse timestamped transcription and upload each block separately
                 if '[' in transcript_content and ']' in transcript_content:
                     lines = transcript_content.strip().split('\n')
-
+                    
                     for line in lines:
                         line = line.strip()
                         if not line or not line.startswith('['):
                             continue
-
+                        
                         # Parse timestamp format: [HH:MM:SS] Text or [HH:MM:SS] [Xs] Text
                         try:
                             # Find first closing bracket
                             first_bracket_end = line.index(']')
                             time_str = line[1:first_bracket_end]  # Extract HH:MM:SS
-
+                            
                             # Extract text (skip relative time if present)
                             remaining = line[first_bracket_end + 1:].strip()
                             if remaining.startswith('['):
@@ -340,19 +337,19 @@ def upload_to_experiment(transcript_content, include_timestamps=False):
                                 text = remaining[second_bracket_end + 1:].strip()
                             else:
                                 text = remaining
-
+                            
                             if not text:
                                 continue
-
-                            # Convert [HH:MM:SS] to full datetime format
+                            
+                            # Convert [HH:MM:SS] to full datetime format: YYYY-MM-DD HH:MM:SS.
                             today = datetime.now().date()
                             time_parts = time_str.split(':')
                             if len(time_parts) == 3:
                                 hours, minutes, seconds = map(int, time_parts)
                                 full_datetime = datetime.combine(today, datetime.min.time().replace(hour=hours, minute=minutes, second=seconds))
                                 formatted_timestamp = full_datetime.strftime('%Y-%m-%dT%H:%M:%S')
-
-                                # Upload with custom timestamp
+                                
+                                # Upload with custom timestamp (no need to prefix in content)
                                 _ = append_to_experiment(st.session_state.api_client, st.session_state.exp_id, text, custom_timestamp=formatted_timestamp, entity_type=entity_type, initials=st.session_state.get('initials', ''))
 
                         except (ValueError, IndexError):
@@ -364,9 +361,9 @@ def upload_to_experiment(transcript_content, include_timestamps=False):
             else:
                 # Upload plain text with current timestamp (default behavior)
                 _ = append_to_experiment(st.session_state.api_client, st.session_state.exp_id, transcript_content, entity_type=entity_type, initials=st.session_state.get('initials', ''))
-
+        
         return True
-
+        
     except Exception as e:
         st.error(f"❌ Error uploading to experiment: {str(e)}")
         return False
@@ -394,23 +391,23 @@ def transcription_widget(key_suffix="", on_upload_callback=None, compact_mode=Fa
         return
 
     # ── Session state keys ────────────────────────────────────────────────────
-    transcribing_key       = f"transcribing{key_suffix}"
-    model_loading_key      = f"model_loading{key_suffix}"
-    model_ready_key        = f"model_ready{key_suffix}"
+    transcribing_key      = f"transcribing{key_suffix}"
+    model_loading_key     = f"model_loading{key_suffix}"
+    model_ready_key       = f"model_ready{key_suffix}"
     widget_initialized_key = f"widget_initialized{key_suffix}"
-    use_timestamps_key     = f"use_timestamps{key_suffix}"
-    ed_reset_key           = f"transcript_editor_reset{key_suffix}"
+    use_timestamps_key    = f"use_timestamps{key_suffix}"
+    ed_reset_key          = f"transcript_editor_reset{key_suffix}"
 
     if widget_initialized_key not in st.session_state:
         cleanup_transcription_data()
         st.session_state[widget_initialized_key] = True
 
     for key, default in [
-        (transcribing_key,   False),
-        (model_loading_key,  False),
-        (model_ready_key,    False),
+        (transcribing_key,  False),
+        (model_loading_key, False),
+        (model_ready_key,   False),
         (use_timestamps_key, False),
-        (ed_reset_key,       0),
+        (ed_reset_key,      0),
     ]:
         if key not in st.session_state:
             st.session_state[key] = default

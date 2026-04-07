@@ -52,9 +52,7 @@ with exp_chat:
             initials=st.session_state.get('initials', ''),
         )
         st.success("Comment added.")
-        # Pop stored value so stale submitted:true can't be re-processed on next rerun
         st.session_state.pop('chat_hashtag_ta', None)
-        # Increment reset_key so the JS clears the textarea
         st.session_state['chat_reset_key'] += 1
         st.rerun()
 
