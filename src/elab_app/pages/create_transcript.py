@@ -317,18 +317,18 @@ def upload_to_experiment(transcript_content, include_timestamps=False):
                 # Parse timestamped transcription and upload each block separately
                 if '[' in transcript_content and ']' in transcript_content:
                     lines = transcript_content.strip().split('\n')
-                    
+                    any_ok = False
                     for line in lines:
                         line = line.strip()
                         if not line or not line.startswith('['):
                             continue
-                        
+
                         # Parse timestamp format: [HH:MM:SS] Text or [HH:MM:SS] [Xs] Text
                         try:
                             # Find first closing bracket
                             first_bracket_end = line.index(']')
                             time_str = line[1:first_bracket_end]  # Extract HH:MM:SS
-                            
+
                             # Extract text (skip relative time if present)
                             remaining = line[first_bracket_end + 1:].strip()
                             if remaining.startswith('['):
@@ -337,10 +337,10 @@ def upload_to_experiment(transcript_content, include_timestamps=False):
                                 text = remaining[second_bracket_end + 1:].strip()
                             else:
                                 text = remaining
-                            
+
                             if not text:
                                 continue
-                            
+
                             # Convert [HH:MM:SS] to full datetime format: YYYY-MM-DD HH:MM:SS.
                             today = datetime.now().date()
                             time_parts = time_str.split(':')
@@ -348,22 +348,22 @@ def upload_to_experiment(transcript_content, include_timestamps=False):
                                 hours, minutes, seconds = map(int, time_parts)
                                 full_datetime = datetime.combine(today, datetime.min.time().replace(hour=hours, minute=minutes, second=seconds))
                                 formatted_timestamp = full_datetime.strftime('%Y-%m-%dT%H:%M:%S')
-                                
-                                # Upload with custom timestamp (no need to prefix in content)
-                                _ = append_to_experiment(st.session_state.api_client, st.session_state.exp_id, text, custom_timestamp=formatted_timestamp, entity_type=entity_type, initials=st.session_state.get('initials', ''))
+
+                                # Upload with custom timestamp
+                                if append_to_experiment(st.session_state.api_client, st.session_state.exp_id, text, custom_timestamp=formatted_timestamp, entity_type=entity_type, initials=st.session_state.get('initials', '')):
+                                    any_ok = True
 
                         except (ValueError, IndexError):
                             # If parsing fails, skip this line
                             continue
+                    return any_ok
                 else:
                     # No timestamps found, upload as plain text with current timestamp
-                    _ = append_to_experiment(st.session_state.api_client, st.session_state.exp_id, transcript_content, entity_type=entity_type, initials=st.session_state.get('initials', ''))
+                    return append_to_experiment(st.session_state.api_client, st.session_state.exp_id, transcript_content, entity_type=entity_type, initials=st.session_state.get('initials', ''))
             else:
                 # Upload plain text with current timestamp (default behavior)
-                _ = append_to_experiment(st.session_state.api_client, st.session_state.exp_id, transcript_content, entity_type=entity_type, initials=st.session_state.get('initials', ''))
-        
-        return True
-        
+                return append_to_experiment(st.session_state.api_client, st.session_state.exp_id, transcript_content, entity_type=entity_type, initials=st.session_state.get('initials', ''))
+
     except Exception as e:
         st.error(f"❌ Error uploading to experiment: {str(e)}")
         return False

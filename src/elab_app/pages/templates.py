@@ -29,20 +29,23 @@ def reset():
 def _append(prompt: str):
     """Write *prompt* to the current elabFTW entry."""
     entity_type = st.session_state.get('entity_type', 'experiments')
-    append_to_experiment(
+    ok = append_to_experiment(
         st.session_state.api_client,
         st.session_state.exp_id,
         prompt,
         entity_type=entity_type,
         initials=st.session_state.get('initials', ''),
     )
-    entry_label = 'experiment' if entity_type == 'experiments' else 'resource'
-    message = "Wrote in %s %s: %s" % (entry_label, st.session_state.exp_name, prompt[:80])
-    if "chat_history" not in st.session_state:
-        st.session_state["chat_history"] = []
-    st.session_state["chat_history"].append(message)
-    if len(st.session_state["chat_history"]) > 10:
-        st.session_state["chat_history"] = st.session_state["chat_history"][-10:]
+    if ok:
+        entry_label = 'experiment' if entity_type == 'experiments' else 'resource'
+        message = "Wrote in %s %s: %s" % (entry_label, st.session_state.exp_name, prompt[:80])
+        if "chat_history" not in st.session_state:
+            st.session_state["chat_history"] = []
+        st.session_state["chat_history"].append(message)
+        if len(st.session_state["chat_history"]) > 10:
+            st.session_state["chat_history"] = st.session_state["chat_history"][-10:]
+    else:
+        st.error("⚠️ Could not send to elabFTW — see **Session History** on the Add text logs page.")
 
 
 # ── YAML loader ───────────────────────────────────────────────────────────────

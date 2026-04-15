@@ -1,8 +1,7 @@
-# elab_app schema version
-# Bump LOG_SCHEMA_VERSION only when the log table format changes (new columns,
-# different structure, etc.) — independent of git commits or feature additions.
-# Tables of a different schema version are left untouched and the user is warned.
+# App version — also written into every log table row so entries carry their own provenance.
+# LOG_SCHEMA_VERSION is a legacy name; it serves as the single app version string.
+# Bump this whenever a new release is made (app update, new features, bug fixes, etc.).
 
-LOG_SCHEMA_VERSION = "v3.0"
+LOG_SCHEMA_VERSION = "v3.1"
 LOG_SCHEMA_APP     = "elab_app"
 LOG_SCHEMA_URL     = "https://github.com/ffelsen/elab_app"

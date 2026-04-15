@@ -272,13 +272,9 @@ else:
     compat = check_log_compatibility(entry.body)
 
     if compat['status'] == 'no_table':
-        st.warning(
-            "⚠️ This entry does not yet contain an elab-app log table. "
-            "The first log you post will create it automatically.\n\n"
-            "If you want to create it manually (e.g. to migrate existing content), "
-            "paste the following HTML into the elabFTW source editor (**Tools → Source code**) and save:"
+        st.info(
+            "ℹ️ No elab-app log table yet — one will be created automatically when you post your first log."
         )
-        st.code(build_log_table([]), language='html')
 
     elif compat['status'] == 'ok':
         st.success(

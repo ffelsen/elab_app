@@ -45,13 +45,16 @@ with exp_chat:
 
     if result and result.get('submitted') and result.get('text', '').strip():
         entity_type = st.session_state.get('entity_type', 'experiments')
-        append_to_experiment(
+        ok = append_to_experiment(
             st.session_state.api_client, st.session_state.exp_id,
             result['text'].strip(),
             entity_type=entity_type,
             initials=st.session_state.get('initials', ''),
         )
-        st.success("Comment added.")
+        if ok:
+            st.success("✅ Comment added.")
+        else:
+            st.error("⚠️ Could not send to elabFTW — see **Session History** below for details and re-send options.")
         # Pop stored value so stale submitted:true can't be re-processed on next rerun
         st.session_state.pop('chat_hashtag_ta', None)
         # Increment reset_key so the JS clears the textarea
@@ -141,11 +144,14 @@ with exp_csv:
                 )
                 if st.button("Upload to elabFTW", type="primary", key="csv_confirm"):
                     entity_type = st.session_state.get('entity_type', 'experiments')
-                    inserted, skipped = bulk_append_to_experiment(
+                    inserted, skipped, err = bulk_append_to_experiment(
                         st.session_state.api_client, st.session_state.exp_id,
                         valid_rows, entity_type=entity_type,
                     )
-                    st.success(f"Done! {inserted} row(s) inserted, {skipped} exact duplicate(s) skipped.")
+                    if err:
+                        st.error(f"⚠️ Upload failed: {err}\n\nFailed rows appear in **Session History** below.")
+                    else:
+                        st.success(f"Done! {inserted} row(s) inserted, {skipped} exact duplicate(s) skipped.")
             elif not errors:
                 st.warning("No valid rows found in the CSV.")
 
@@ -155,7 +161,11 @@ session_log = st.session_state.get('session_log', [])
 
 if session_log:
     st.divider()
-    st.subheader("Session History")
+    n_failed = sum(1 for e in session_log if e.get('failed'))
+    header = "Session History"
+    if n_failed:
+        header += f" — ⚠️ {n_failed} failed"
+    st.subheader(header)
 
     # Group by experiment/resource, preserving insertion order
     seen_names = []
@@ -171,11 +181,47 @@ if session_log:
         g = groups[name]
         label = 'Resource' if g['entity_type'] == 'items' else 'Experiment'
         st.markdown(f"**{label}: {name}**")
-        st.dataframe(
-            pd.DataFrame(
-                [{'ISO time': e['timestamp'], 'Log': e['content'], 'Initials': e['initials']}
-                 for e in g['rows']],
-            ),
-            use_container_width=True,
-            hide_index=True,
-        )
+
+        df_rows = [{'ISO time': e['timestamp'], 'Log': e['content'], 'Initials': e['initials']}
+                   for e in g['rows']]
+        df = pd.DataFrame(df_rows)
+
+        # Colour failed rows red using pandas Styler
+        row_failed = [e.get('failed', False) for e in g['rows']]
+        def _style_rows(row, _flags=row_failed):
+            if _flags[row.name]:
+                return ['background-color: #ffd6d6; color: #7a0000'] * len(row)
+            return [''] * len(row)
+
+        st.dataframe(df.style.apply(_style_rows, axis=1),
+                     use_container_width=True, hide_index=True)
+
+        # Re-send panel for failed entries
+        failed_in_group = [(i, e) for i, e in enumerate(g['rows']) if e.get('failed')]
+        if failed_in_group:
+            with st.expander(f"⚠️ {len(failed_in_group)} failed entr{'y' if len(failed_in_group)==1 else 'ies'} — click to re-send or copy"):
+                for i, e in failed_in_group:
+                    st.markdown(f"**{e['timestamp']}**  \n`{e.get('error', 'unknown error')}`")
+                    st.code(e['content'], language=None)
+                    col_r, col_s = st.columns([1, 4])
+                    if col_r.button("↩ Re-send", key=f"resend_{name}_{i}"):
+                        ok = append_to_experiment(
+                            st.session_state.api_client,
+                            e['exp_id'],
+                            e['content'],
+                            custom_timestamp=e['timestamp'],
+                            entity_type=e['entity_type'],
+                            initials=e['initials'],
+                        )
+                        if ok:
+                            # mark original entry as resolved and remove the duplicate just added
+                            e['failed'] = False
+                            e['error'] = None
+                            # remove the re-send duplicate from session_log
+                            if st.session_state['session_log'][-1].get('failed') is False:
+                                st.session_state['session_log'].pop()
+                            st.rerun()
+                        else:
+                            # remove the duplicate failed entry just added by append_to_experiment
+                            st.session_state['session_log'].pop()
+                            st.error("Still failing — check elabFTW permissions.")

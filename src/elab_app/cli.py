@@ -119,6 +119,12 @@ def config(
         cfg[key] = value
         _save_config(cfg)
         typer.echo(f"Set {key} = {value}")
+        # Ensure runtime directories exist (mirrors what `start` does)
+        pkg_templates = Path(__file__).parent / "templates"
+        user_templates = _CONFIG_DIR / "templates"
+        if pkg_templates.exists() and not user_templates.exists():
+            shutil.copytree(pkg_templates, user_templates)
+        (_CONFIG_DIR / "keys").mkdir(parents=True, exist_ok=True)
     else:
         typer.echo(f"Unknown action '{action}'. Use 'show' or 'set'.", err=True)
         raise typer.Exit(1)

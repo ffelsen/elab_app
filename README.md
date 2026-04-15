@@ -58,6 +58,24 @@ YAML templates are stored in `~/.config/elab_app/templates/`. The first time you
 
 ---
 
+# Updating
+
+To update to the latest version, run:
+
+```bash
+uv tool install --reinstall git+https://github.com/ffelsen/elab_app
+```
+
+Or, if you installed with voice transcription:
+
+```bash
+uv tool install --reinstall "git+https://github.com/ffelsen/elab_app[transcription]"
+```
+
+The **About** page (accessible from the app's navigation) shows your installed version and automatically checks GitHub for a newer release.
+
+---
+
 # Running the app
 
 ```bash
@@ -81,13 +99,13 @@ When no key file exists for a user, the app shows a setup dialog:
 1. **Initials** — choose your initials in lowercase (e.g. `ljf`). This becomes the filename `~/.config/elab_app/keys/ljf.enc`. The dropdown will list any existing users on the machine.
 2. **PIN** — a short passphrase that protects the encrypted file. You will type this every time you open the app.
 3. **elabFTW API key** — paste your personal API key (find it in elabFTW under **User Panel → API KEYS**). You only ever enter this once; after setup it is stored encrypted and never shown again.
-4. Click **Set up** — the app verifies the API key against elabFTW, saves the encrypted file, confirms *"You will write into elabFTW as [elabFTW first and last name]"*, and logs you in automatically.
+4. Click **Set up** (or press Enter) — the app verifies the API key against elabFTW, saves the encrypted file, confirms *"You will write into elabFTW as [elabFTW first and last name]"*, and logs you in automatically.
 
 To reset your account, delete `~/.config/elab_app/keys/<initials>.enc` and go through setup again.
 
 # Subsequent logins
 
-Select your initials from the dropdown, enter your PIN, and click **Log in**. Your display name and team are fetched automatically from elabFTW — no manual name entry needed.
+Select your initials from the dropdown, enter your PIN, and press Enter or click **Log in**. Your display name and team are fetched automatically from elabFTW — no manual name entry needed.
 
 ---
 
@@ -119,7 +137,7 @@ For templates that need conditional fields (e.g. spot size depending on excitati
 
 ---
 
-# Log table format (v3.0)
+# Log table format (v3.1)
 
 Each elab-app log is stored as an HTML table inside the elabFTW entry body. The format has been stable since v2.x with one addition in v3.0: a per-row **App version** column.
 
@@ -128,7 +146,7 @@ Each elab-app log is stored as an HTML table inside the elabFTW entry body. The 
 | ISO time (ISO 8601) | Timestamp of the log entry |
 | Log (newest to oldest) | Free-text content (supports Markdown → HTML) |
 | Initials | User initials (lowercase, max 6 chars) |
-| App version | Version of elab_app that wrote the row (e.g. `v3.0`); rows migrated from v2.x show `2.x` |
+| App version | Version of elab_app that wrote the row (e.g. `v3.1`); rows migrated from v2.x show `2.x` |
 
 - The first row of every table is an identifier row (`elab_app | repo URL | | `) used for detection.
 - The app merges all log tables it finds in an entry into one on the next write — multiple tables are consolidated automatically regardless of which app version created them.
@@ -149,10 +167,12 @@ When a log entry references an elabFTW resource or experiment using an internal 
 * Adding comments in chat and template mode
 * YAML-based user-defined templates (no coding required)
 * Adding sketches to entries
-* Voice transcription with optional per-segment timestamps (Whisper-based)
+* Voice transcription with optional per-segment timestamps (Whisper-based, optional install)
 * Download log entries filtered by date range as a zip of JSON files
-* Per-row app version tracking in the log table (v3.0)
+* Per-row app version tracking in the log table
 * Auto-linking of referenced resources/experiments as elabFTW database links
+* API error handling with failed-entry history, red highlighting, and re-send button
+* About page with version check against the GitHub repository
 
 # To Do
 

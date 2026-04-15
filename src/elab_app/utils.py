@@ -62,41 +62,53 @@ def append_to_experiment(api_client, exp_id, content, custom_timestamp=None, ent
     content_plain = content                 # keep original for session log
     content_html  = md.markdown(content)
 
-    # get current content of the entry
-    if entity_type == 'items':
-        names, ids, entries = get_items(api_client)
-    else:
-        names, ids, entries = get_experiments(api_client)
-    current_content = entries[ids.index(exp_id)].body or ''
+    # fetch + merge + patch — wrap everything so any network/permission error is caught
+    _failed = False
+    _error  = None
+    n_tables   = 0
+    total_rows = 0
+    try:
+        # get current content of the entry
+        if entity_type == 'items':
+            names, ids, entries = get_items(api_client)
+        else:
+            names, ids, entries = get_experiments(api_client)
+        current_content = entries[ids.index(exp_id)].body or ''
 
-    new_row = (timestamp, content_html, initials, LOG_SCHEMA_VERSION)
-    new_content, inserted, skipped, n_tables = _consolidate(current_content, [new_row])
+        new_row = (timestamp, content_html, initials, LOG_SCHEMA_VERSION)
+        new_content, inserted, skipped, n_tables = _consolidate(current_content, [new_row])
 
-    # patch the entry
-    if entity_type == 'items':
-        elabapi_python.ItemsApi(api_client).patch_item(body={'body': new_content}, id=exp_id)
-    else:
-        elabapi_python.ExperimentsApi(api_client).patch_experiment(body={'body': new_content}, id=exp_id)
+        if entity_type == 'items':
+            elabapi_python.ItemsApi(api_client).patch_item(body={'body': new_content}, id=exp_id)
+        else:
+            elabapi_python.ExperimentsApi(api_client).patch_experiment(body={'body': new_content}, id=exp_id)
 
-    # mirror any elabFTW internal links in the log text as proper database links
-    _create_links_from_html(api_client, entity_type, exp_id, content_html)
+        # mirror any elabFTW internal links in the log text as proper database links
+        _create_links_from_html(api_client, entity_type, exp_id, content_html)
 
-    # count total rows in the updated table for the session log
-    all_tables = _find_all_log_tables(new_content)
-    total_rows = sum(len(parse_log_rows(new_content[s:e])) for s, e in all_tables)
+        # count total rows in the locally-built content
+        all_tables = _find_all_log_tables(new_content)
+        total_rows = sum(len(parse_log_rows(new_content[s:e])) for s, e in all_tables)
+    except Exception as exc:
+        _failed = True
+        _error  = str(exc)
 
-    # append to session log so the comment page can display it centrally
+    # always record in session log — failed entries are shown in red with a re-send button
     if 'session_log' not in st.session_state:
         st.session_state['session_log'] = []
     st.session_state['session_log'].append({
-        'exp_name':   st.session_state.get('exp_name', str(exp_id)),
+        'exp_name':    st.session_state.get('exp_name', str(exp_id)),
+        'exp_id':      exp_id,
         'entity_type': entity_type,
-        'timestamp':  timestamp,
-        'content':    content_plain,
-        'initials':   initials,
-        'n_tables':   n_tables,
-        'total_rows': total_rows,
+        'timestamp':   timestamp,
+        'content':     content_plain,
+        'initials':    initials,
+        'n_tables':    n_tables,
+        'total_rows':  total_rows,
+        'failed':      _failed,
+        'error':       _error,
     })
+    return not _failed
 
 def upload_image(api_client, exp_id, path, entity_type='experiments'):
     """upload image to an experiment or item entry
@@ -167,8 +179,7 @@ def insert_image(api_client, exp_id, name, entity_type='experiments', initials='
     names, upls = get_uploads(api_client, exp_id, entity_type=entity_type)
     ind = names.index(name)
     cont = get_image_content(upls[ind])
-    append_to_experiment(api_client, exp_id, cont, entity_type=entity_type, initials=initials)
-    return True
+    return append_to_experiment(api_client, exp_id, cont, entity_type=entity_type, initials=initials)
 
 def get_experiments(api_client):
     """read all experiments
@@ -503,36 +514,48 @@ def bulk_append_to_experiment(api_client, exp_id, new_rows, entity_type='experim
     new_rows: list of (timestamp_str, content_html, initials, app_version)
     Returns: (inserted_count, skipped_count)
     """
-    if entity_type == 'items':
-        names, ids, entries = get_items(api_client)
-    else:
-        names, ids, entries = get_experiments(api_client)
-    current_content = entries[ids.index(exp_id)].body or ''
+    _failed  = False
+    _error   = None
+    inserted = 0
+    skipped  = 0
+    try:
+        if entity_type == 'items':
+            names, ids, entries = get_items(api_client)
+        else:
+            names, ids, entries = get_experiments(api_client)
+        current_content = entries[ids.index(exp_id)].body or ''
 
-    new_content, inserted, skipped, _ = _consolidate(current_content, new_rows)
+        new_content, inserted, skipped, _ = _consolidate(current_content, new_rows)
 
-    if entity_type == 'items':
-        elabapi_python.ItemsApi(api_client).patch_item(body={'body': new_content}, id=exp_id)
-    else:
-        elabapi_python.ExperimentsApi(api_client).patch_experiment(body={'body': new_content}, id=exp_id)
+        if entity_type == 'items':
+            elabapi_python.ItemsApi(api_client).patch_item(body={'body': new_content}, id=exp_id)
+        else:
+            elabapi_python.ExperimentsApi(api_client).patch_experiment(body={'body': new_content}, id=exp_id)
+    except Exception as exc:
+        _failed = True
+        _error  = str(exc)
 
-    # append inserted rows to session log
-    if inserted > 0:
+    # always record rows in session log (failed rows appear in red with re-send button)
+    if inserted > 0 or _failed:
         if 'session_log' not in st.session_state:
             st.session_state['session_log'] = []
         exp_name = st.session_state.get('exp_name', str(exp_id))
-        for ts, content_html, inits, *_ in new_rows:
+        rows_to_log = new_rows if _failed else new_rows[:inserted + skipped]
+        for ts, content_html, inits, *_ in rows_to_log:
             st.session_state['session_log'].append({
                 'exp_name':    exp_name,
+                'exp_id':      exp_id,
                 'entity_type': entity_type,
                 'timestamp':   ts,
-                'content':     content_html,   # already HTML from CSV pipeline
+                'content':     content_html,
                 'initials':    inits,
                 'n_tables':    None,
                 'total_rows':  None,
+                'failed':      _failed,
+                'error':       _error,
             })
 
-    return inserted, skipped
+    return inserted, skipped, _error
 
 
 def check_log_compatibility(body):

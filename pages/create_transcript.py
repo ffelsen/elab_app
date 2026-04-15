@@ -320,7 +320,7 @@ def upload_to_experiment(transcript_content, include_timestamps=False):
                 # Parse timestamped transcription and upload each block separately
                 if '[' in transcript_content and ']' in transcript_content:
                     lines = transcript_content.strip().split('\n')
-
+                    any_ok = False
                     for line in lines:
                         line = line.strip()
                         if not line or not line.startswith('['):
@@ -353,19 +353,19 @@ def upload_to_experiment(transcript_content, include_timestamps=False):
                                 formatted_timestamp = full_datetime.strftime('%Y-%m-%dT%H:%M:%S')
 
                                 # Upload with custom timestamp
-                                _ = append_to_experiment(st.session_state.api_client, st.session_state.exp_id, text, custom_timestamp=formatted_timestamp, entity_type=entity_type, initials=st.session_state.get('initials', ''))
+                                if append_to_experiment(st.session_state.api_client, st.session_state.exp_id, text, custom_timestamp=formatted_timestamp, entity_type=entity_type, initials=st.session_state.get('initials', '')):
+                                    any_ok = True
 
                         except (ValueError, IndexError):
                             # If parsing fails, skip this line
                             continue
+                    return any_ok
                 else:
                     # No timestamps found, upload as plain text with current timestamp
-                    _ = append_to_experiment(st.session_state.api_client, st.session_state.exp_id, transcript_content, entity_type=entity_type, initials=st.session_state.get('initials', ''))
+                    return append_to_experiment(st.session_state.api_client, st.session_state.exp_id, transcript_content, entity_type=entity_type, initials=st.session_state.get('initials', ''))
             else:
                 # Upload plain text with current timestamp (default behavior)
-                _ = append_to_experiment(st.session_state.api_client, st.session_state.exp_id, transcript_content, entity_type=entity_type, initials=st.session_state.get('initials', ''))
-
-        return True
+                return append_to_experiment(st.session_state.api_client, st.session_state.exp_id, transcript_content, entity_type=entity_type, initials=st.session_state.get('initials', ''))
 
     except Exception as e:
         st.error(f"❌ Error uploading to experiment: {str(e)}")

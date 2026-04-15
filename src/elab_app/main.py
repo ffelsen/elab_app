@@ -77,36 +77,34 @@ def login_dialog():
     else:
         name_ok = False
 
-    # ── PIN field ────────────────────────────────────────────────────────────
-    pin = st.text_input("PIN", type="password", key="_login_pin",
-                        help="A short passphrase you'll type each time you open the app.")
+    # ── PIN + submit (form so Enter key works) ──────────────────────────────
+    with st.form("_login_form"):
+        pin = st.text_input("PIN", type="password", key="_login_pin",
+                            help="A short passphrase you'll type each time you open the app.")
+        if is_new:
+            api_key_input = st.text_input(
+                "elabFTW API key",
+                type="password",
+                key="_login_apikey",
+                help="Find your API key in elabFTW under **Profile → API Keys**.",
+            )
+            st.caption(
+                "ℹ️ You only enter this once. After setup it is stored encrypted "
+                "and never shown again."
+            )
+        else:
+            api_key_input = ""
 
-    # ── New-user: API key field ──────────────────────────────────────────────
-    if is_new:
-        api_key_input = st.text_input(
-            "elabFTW API key",
-            type="password",
-            key="_login_apikey",
-            help="Find your API key in elabFTW under **Profile → API Keys**.",
+        st.divider()
+        col1, _ = st.columns(2)
+        submitted = col1.form_submit_button(
+            "Set up" if is_new else "Log in",
+            use_container_width=True,
+            type="primary",
         )
-        st.caption(
-            "ℹ️ You only enter this once. After setup it is stored encrypted "
-            "and never shown again."
-        )
-    else:
-        api_key_input = ""
 
-    st.divider()
-
-    # ── Buttons ──────────────────────────────────────────────────────────────
-    if is_new:
-        col1, col2 = st.columns(2)
-        setup_clicked = col1.button("Set up", use_container_width=True, type="primary")
-        login_clicked = False
-    else:
-        col1, col2 = st.columns(2)
-        login_clicked = col1.button("Log in", use_container_width=True, type="primary")
-        setup_clicked = False
+    login_clicked = submitted and not is_new
+    setup_clicked = submitted and is_new
 
     # ── Log-in flow ──────────────────────────────────────────────────────────
     if login_clicked:
@@ -199,19 +197,22 @@ def team_dialog(api_key: str, info: dict):
         "Please choose which team you want to work in for this session:"
     )
 
-    chosen_name = st.radio(
-        "Team",
-        options=team_names,
-        index=0,
-        key="_team_radio",
-    )
+    with st.form("_team_form"):
+        chosen_name = st.radio(
+            "Team",
+            options=team_names,
+            index=0,
+            key="_team_radio",
+        )
 
-    st.caption(
-        "ℹ️ Your choice determines which experiment categories and "
-        "access rights are available. You can start a new session to switch teams."
-    )
+        st.caption(
+            "ℹ️ Your choice determines which experiment categories and "
+            "access rights are available. You can start a new session to switch teams."
+        )
 
-    if st.button("Continue", type="primary", key="_team_confirm", use_container_width=True):
+        submitted = st.form_submit_button("Continue", type="primary", use_container_width=True)
+
+    if submitted:
         chosen = next(t for t in teams if t["name"] == chosen_name)
         short_name = st.session_state.get("_pending_login", {}).get("short_name", "")
         st.session_state.pop("_pending_login", None)
@@ -272,6 +273,7 @@ if col_btn.button("Log out", use_container_width=True):
 main_page = st.Page("pages/main_page.py", title="Open")
 page_3 = st.Page("pages/comment.py", title="Add text logs")
 page_4 = st.Page("pages/sketch.py", title="Add sketch")
+page_about = st.Page("pages/about.py", title="About")
 
-pg = st.navigation([main_page, page_3, page_4])
+pg = st.navigation([main_page, page_3, page_4, page_about])
 pg.run()

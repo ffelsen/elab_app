@@ -55,8 +55,16 @@ if st.button('Upload drawing'):
     im.save(file_path, "PNG")
     entity_type = st.session_state.get('entity_type', 'experiments')
     initials = st.session_state.get('initials', '')
-    upload_image(st.session_state.api_client, st.session_state.exp_id, str(file_path), entity_type=entity_type)
-    insert_image(st.session_state.api_client, st.session_state.exp_id, file_path.name, entity_type=entity_type, initials=initials)
+    try:
+        upload_image(st.session_state.api_client, st.session_state.exp_id, str(file_path), entity_type=entity_type)
+    except Exception as exc:
+        st.error(f"⚠️ Could not upload image to elabFTW: {exc}")
+    else:
+        ok = insert_image(st.session_state.api_client, st.session_state.exp_id, file_path.name, entity_type=entity_type, initials=initials)
+        if ok:
+            st.success("✅ Drawing uploaded and logged!")
+        else:
+            st.error("⚠️ Image uploaded but could not write log entry — see **Session History** on the Add text logs page.")
 #if canvas_result.json_data is not None:
 #    objects = pd.json_normalize(canvas_result.json_data["objects"])
 #    for col in objects.select_dtypes(include=["object"]).columns:
