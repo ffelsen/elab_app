@@ -16,9 +16,19 @@ from auth import (
 filterwarnings("ignore")
 
 _HERE = Path(__file__).parent
-st.logo(str(_HERE / "content" / "logo.png"), size="large")
 
-st.set_page_config(page_title="ElabFTW Logger")
+# Logo: drop a TUM logo at content/tum_logo.png and it will be used automatically.
+# Any square PNG works; the sidebar shows it full-size, collapsed sidebar shows icon_image.
+_tum_logo = _HERE / "content" / "tum_logo.png"
+_logo_path = str(_tum_logo) if _tum_logo.exists() else str(_HERE / "content" / "logo.png")
+st.logo(_logo_path, size="large")
+
+st.set_page_config(
+    page_title="ElabFTW Logger",
+    page_icon=_logo_path,
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
 
 # ── Login / setup dialog ──────────────────────────────────────────────────────
 
@@ -232,6 +242,7 @@ def _complete_login(api_key: str, info: dict, team: dict, short_name: str = ""):
     st.session_state["team_id"] = team["id"]
     st.session_state["initials"] = short_name
     st.session_state["prompt"] = None
+    st.session_state["_just_logged_in"] = True
     st.rerun()
 
 
@@ -249,31 +260,16 @@ if "api_client" not in st.session_state:
     login_dialog()
     st.stop()
 
-# ── Logged-in header ──────────────────────────────────────────────────────────
-
-st.write("# Welcome to the ElabFTW log app!")
-st.image(str(_HERE / "content" / "e-conversion_logo.png"))
-
-fullname = st.session_state.get("fullname", "")
-team = st.session_state.get("team", "")
-exp_name = st.session_state.get("exp_name", "")
-entity_type = st.session_state.get("entity_type", "experiments")
-entry_label = "Experiment" if entity_type == "experiments" else "Resource"
-info_text = f"Logged in as **{fullname}** · Team **{team}**"
-if exp_name:
-    info_text += f" · {entry_label}: **{exp_name}**"
-col_info, col_btn = st.columns([5, 1])
-col_info.info(info_text)
-if col_btn.button("Log out", use_container_width=True):
-    st.session_state.clear()
-    st.rerun()
-
 # ── Page navigation ───────────────────────────────────────────────────────────
 
-main_page = st.Page("pages/main_page.py", title="Open")
-page_3 = st.Page("pages/comment.py", title="Add text logs")
-page_4 = st.Page("pages/sketch.py", title="Add sketch")
-page_about = st.Page("pages/about.py", title="About")
+page_user  = st.Page("pages/user.py",      title="User")
+main_page  = st.Page("pages/main_page.py", title="Log")
+page_about = st.Page("pages/about.py",     title="About")
 
-pg = st.navigation([main_page, page_3, page_4, page_about])
+pg = st.navigation([page_user, main_page, page_about])
+
+# Redirect to Log page immediately after login (flag set by _complete_login).
+if st.session_state.pop("_just_logged_in", False):
+    st.switch_page(main_page)
+
 pg.run()

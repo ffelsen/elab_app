@@ -162,66 +162,62 @@ session_log = st.session_state.get('session_log', [])
 if session_log:
     st.divider()
     n_failed = sum(1 for e in session_log if e.get('failed'))
-    header = "Session History"
+    header = "Session History (newest first)"
     if n_failed:
         header += f" — ⚠️ {n_failed} failed"
     st.subheader(header)
 
-    # Group by experiment/resource, preserving insertion order
-    seen_names = []
-    groups = {}
-    for entry in session_log:
-        name = entry['exp_name']
-        if name not in groups:
-            groups[name] = {'entity_type': entry['entity_type'], 'rows': []}
-            seen_names.append(name)
-        groups[name]['rows'].append(entry)
+    # Single flat table, newest first
+    reversed_log = list(reversed(session_log))
+    df_rows = []
+    for e in reversed_log:
+        entry_label = 'Resource' if e['entity_type'] == 'items' else 'Experiment'
+        df_rows.append({
+            'Entry': f"{entry_label}: {e['exp_name']}",
+            'ISO time': e['timestamp'],
+            'Log': e['content'],
+            'Initials': e['initials'],
+        })
+    df = pd.DataFrame(df_rows)
 
-    for name in seen_names:
-        g = groups[name]
-        label = 'Resource' if g['entity_type'] == 'items' else 'Experiment'
-        st.markdown(f"**{label}: {name}**")
+    row_failed = [e.get('failed', False) for e in reversed_log]
+    def _style_rows(row, _flags=row_failed):
+        if _flags[row.name]:
+            return ['background-color: #ffd6d6; color: #7a0000'] * len(row)
+        return [''] * len(row)
 
-        df_rows = [{'ISO time': e['timestamp'], 'Log': e['content'], 'Initials': e['initials']}
-                   for e in g['rows']]
-        df = pd.DataFrame(df_rows)
+    st.dataframe(df.style.apply(_style_rows, axis=1),
+                 use_container_width=True, hide_index=True)
 
-        # Colour failed rows red using pandas Styler
-        row_failed = [e.get('failed', False) for e in g['rows']]
-        def _style_rows(row, _flags=row_failed):
-            if _flags[row.name]:
-                return ['background-color: #ffd6d6; color: #7a0000'] * len(row)
-            return [''] * len(row)
-
-        st.dataframe(df.style.apply(_style_rows, axis=1),
-                     use_container_width=True, hide_index=True)
-
-        # Re-send panel for failed entries
-        failed_in_group = [(i, e) for i, e in enumerate(g['rows']) if e.get('failed')]
-        if failed_in_group:
-            with st.expander(f"⚠️ {len(failed_in_group)} failed entr{'y' if len(failed_in_group)==1 else 'ies'} — click to re-send or copy"):
-                for i, e in failed_in_group:
-                    st.markdown(f"**{e['timestamp']}**  \n`{e.get('error', 'unknown error')}`")
-                    st.code(e['content'], language=None)
-                    col_r, col_s = st.columns([1, 4])
-                    if col_r.button("↩ Re-send", key=f"resend_{name}_{i}"):
-                        ok = append_to_experiment(
-                            st.session_state.api_client,
-                            e['exp_id'],
-                            e['content'],
-                            custom_timestamp=e['timestamp'],
-                            entity_type=e['entity_type'],
-                            initials=e['initials'],
-                        )
-                        if ok:
-                            # mark original entry as resolved and remove the duplicate just added
-                            e['failed'] = False
-                            e['error'] = None
-                            # remove the re-send duplicate from session_log
-                            if st.session_state['session_log'][-1].get('failed') is False:
-                                st.session_state['session_log'].pop()
-                            st.rerun()
-                        else:
-                            # remove the duplicate failed entry just added by append_to_experiment
+    # Re-send panel — one expander for all failed entries
+    failed_entries = [(i, e) for i, e in enumerate(session_log) if e.get('failed')]
+    if failed_entries:
+        with st.expander(f"⚠️ {len(failed_entries)} failed entr{'y' if len(failed_entries)==1 else 'ies'} — click to re-send or copy"):
+            for i, e in failed_entries:
+                entry_label = 'Resource' if e['entity_type'] == 'items' else 'Experiment'
+                st.markdown(
+                    f"**{entry_label}: {e['exp_name']}** · {e['timestamp']}  \n"
+                    f"`{e.get('error', 'unknown error')}`"
+                )
+                st.code(e['content'], language=None)
+                col_r, _ = st.columns([1, 4])
+                if col_r.button("↩ Re-send", key=f"resend_{i}"):
+                    ok = append_to_experiment(
+                        st.session_state.api_client,
+                        e['exp_id'],
+                        e['content'],
+                        custom_timestamp=e['timestamp'],
+                        entity_type=e['entity_type'],
+                        initials=e['initials'],
+                    )
+                    if ok:
+                        e['failed'] = False
+                        e['error'] = None
+                        # remove the successful re-send duplicate just added
+                        if st.session_state['session_log'][-1].get('failed') is False:
                             st.session_state['session_log'].pop()
-                            st.error("Still failing — check elabFTW permissions.")
+                        st.rerun()
+                    else:
+                        # remove the failed duplicate just added by append_to_experiment
+                        st.session_state['session_log'].pop()
+                        st.error("Still failing — check elabFTW permissions.")

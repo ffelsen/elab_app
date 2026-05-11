@@ -1,10 +1,14 @@
 import re
 import streamlit as st
 from version import LOG_SCHEMA_VERSION, LOG_SCHEMA_APP, LOG_SCHEMA_URL
+from auth import ELAB_HOST
 import elabapi_python
 import datetime
 from PIL import Image
 import markdown as md
+
+# Base URL used for building links in back-reference notes (strip /api/v2 suffix)
+_BASE_URL = ELAB_HOST.replace('/api/v2', '')
 
 def _attr(obj, key):
     """Read *key* from either an object (attribute) or a dict — handles both
@@ -39,7 +43,7 @@ def append_to_experiment_old(api_client, exp_id, content):
     experimentsApi.patch_experiment(body={'body': new_content}, id=exp_id)
     return True
 
-def append_to_experiment(api_client, exp_id, content, custom_timestamp=None, entity_type='experiments', initials=''):
+def append_to_experiment(api_client, exp_id, content, custom_timestamp=None, entity_type='experiments', initials='', _skip_backref=False):
     """Append a time stamped comment to an ElabFTW entry
     in a tabular format
 
@@ -84,7 +88,12 @@ def append_to_experiment(api_client, exp_id, content, custom_timestamp=None, ent
             elabapi_python.ExperimentsApi(api_client).patch_experiment(body={'body': new_content}, id=exp_id)
 
         # mirror any elabFTW internal links in the log text as proper database links
-        _create_links_from_html(api_client, entity_type, exp_id, content_html)
+        # and (unless this is itself a back-reference note) post a system note on each
+        # linked entry so its log records which entry tagged it.
+        if not _skip_backref:
+            source_name = st.session_state.get('exp_name', str(exp_id))
+            _create_links_from_html(api_client, entity_type, exp_id, content_html,
+                                     source_name=source_name, source_initials=initials)
 
         # count total rows in the locally-built content
         all_tables = _find_all_log_tables(new_content)
@@ -93,21 +102,22 @@ def append_to_experiment(api_client, exp_id, content, custom_timestamp=None, ent
         _failed = True
         _error  = str(exc)
 
-    # always record in session log — failed entries are shown in red with a re-send button
-    if 'session_log' not in st.session_state:
-        st.session_state['session_log'] = []
-    st.session_state['session_log'].append({
-        'exp_name':    st.session_state.get('exp_name', str(exp_id)),
-        'exp_id':      exp_id,
-        'entity_type': entity_type,
-        'timestamp':   timestamp,
-        'content':     content_plain,
-        'initials':    initials,
-        'n_tables':    n_tables,
-        'total_rows':  total_rows,
-        'failed':      _failed,
-        'error':       _error,
-    })
+    # Record in session log (skip system back-reference notes — initials='#')
+    if initials != '#':
+        if 'session_log' not in st.session_state:
+            st.session_state['session_log'] = []
+        st.session_state['session_log'].append({
+            'exp_name':    st.session_state.get('exp_name', str(exp_id)),
+            'exp_id':      exp_id,
+            'entity_type': entity_type,
+            'timestamp':   timestamp,
+            'content':     content_plain,
+            'initials':    initials,
+            'n_tables':    n_tables,
+            'total_rows':  total_rows,
+            'failed':      _failed,
+            'error':       _error,
+        })
     return not _failed
 
 def upload_image(api_client, exp_id, path, entity_type='experiments'):
@@ -359,20 +369,30 @@ _ITEM_LINK_RE  = re.compile(r'database\.php\?mode=view&(?:amp;)?id=(\d+)', re.IG
 _EXP_LINK_RE   = re.compile(r'experiments\.php\?mode=view&(?:amp;)?id=(\d+)', re.IGNORECASE)
 
 
-def _create_links_from_html(api_client, entity_type, entity_id, content_html):
-    """Parse content_html for elabFTW internal resource/experiment links and create
-    them as proper database-level links on the entry.
+def _create_links_from_html(api_client, entity_type, entity_id, content_html,
+                             source_name='', source_initials=''):
+    """Parse content_html for elabFTW internal resource/experiment links, create
+    proper database-level links, and post a system back-reference note on each
+    linked entry so its log records which entry tagged it.
 
     elabFTW's own editor does this automatically; this mirrors that behaviour for
-    links inserted through elab_app.  Errors are silently ignored (e.g. the link
-    already exists, or the referenced entry is not accessible).
+    links inserted through elab_app.  All errors are silently ignored.
 
     Detects:
       database.php?mode=view&id=XXXX    → items_links  (resources)
       experiments.php?mode=view&id=XXXX → experiments_links
+
+    Back-reference notes use initials='#' (reserved marker for system messages).
+    They are excluded from the session history and never trigger further back-refs
+    (append_to_experiment passes _skip_backref=True for '#' posts).
     """
     item_ids = {int(m) for m in _ITEM_LINK_RE.findall(content_html)}
     exp_ids  = {int(m) for m in _EXP_LINK_RE.findall(content_html)}
+
+    src_page  = 'experiments.php' if entity_type == 'experiments' else 'database.php'
+    src_url   = f"{_BASE_URL}/{src_page}?mode=view&id={entity_id}"
+    src_label = 'Experiment' if entity_type == 'experiments' else 'Resource'
+    posted_by = source_initials or '?'
 
     if item_ids:
         link_api = elabapi_python.LinksToItemsApi(api_client)
@@ -381,6 +401,15 @@ def _create_links_from_html(api_client, entity_type, entity_id, content_html):
                 link_api.post_entity_items_links(entity_type, entity_id, item_id)
             except Exception:
                 pass
+            if source_name:
+                note = (f"[elab-app] {src_label} [{source_name}]({src_url}) "
+                        f"tagged this resource. Posted by {posted_by}.")
+                try:
+                    append_to_experiment(api_client, item_id, note,
+                                         entity_type='items', initials='#',
+                                         _skip_backref=True)
+                except Exception:
+                    pass
 
     if exp_ids:
         link_api = elabapi_python.LinksToExperimentsApi(api_client)
@@ -389,6 +418,16 @@ def _create_links_from_html(api_client, entity_type, entity_id, content_html):
                 link_api.post_entity_experiments_links(entity_type, entity_id, linked_exp_id)
             except Exception:
                 pass
+            # Don't post a back-ref to the entry itself (self-link)
+            if source_name and linked_exp_id != entity_id:
+                note = (f"[elab-app] {src_label} [{source_name}]({src_url}) "
+                        f"tagged this experiment. Posted by {posted_by}.")
+                try:
+                    append_to_experiment(api_client, linked_exp_id, note,
+                                         entity_type='experiments', initials='#',
+                                         _skip_backref=True)
+                except Exception:
+                    pass
 
 
 def _find_all_log_tables(html):
@@ -588,7 +627,7 @@ def check_log_compatibility(body):
             reasons.append(f"timestamp '{ts}' is not valid ISO 8601")
         if not content.strip():
             reasons.append("log text is empty")
-        if not (_SHORT_NAME_RE.match(initials) and len(initials) <= 6):
+        if initials != '#' and not (_SHORT_NAME_RE.match(initials) and len(initials) <= 6):
             reasons.append(f"initials '{initials}' invalid (lowercase, max 6 chars, start with a letter)")
         if reasons:
             bad_rows.append((i, (ts, content, initials, app_ver), '; '.join(reasons)))

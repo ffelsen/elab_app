@@ -33,13 +33,14 @@
     font-size: 10px; font-weight: 700; padding: 1px 5px;
     border-radius: 3px; flex-shrink: 0;
   }
-  .badge-item { background: #dbeafe; color: #1e40af; }
+  .badge-item       { background: #dbeafe; color: #1e40af; }   /* R — blue  */
+  .badge-experiment { background: #dcfce7; color: #166534; }   /* E — green */
   #item-count { font-size: 10px; color: #aaa; padding: 3px 10px; border-top: 1px solid #f0f0f0; }
 </style>
 </head>
 <body>
 <textarea id="ta" rows="4" spellcheck="true"></textarea>
-<div id="hint">Ctrl+Enter to submit &nbsp;·&nbsp; type # to link a resource</div>
+<div id="hint">Ctrl+Enter to submit &nbsp;·&nbsp; type # to link a resource <span class="badge badge-item">R</span> or experiment <span class="badge badge-experiment">E</span></div>
 <div id="dropdown"></div>
 
 <script>
@@ -118,14 +119,18 @@ function renderDropdown() {
   ac.results.forEach((item, idx) => {
     const div = document.createElement('div');
     div.className = 'ac-item' + (idx === ac.selIdx ? ' selected' : '');
-    div.innerHTML = `<span class="badge badge-item">R</span>${escapeHtml(item.name)}`;
+    const isExp      = item.type === 'experiments';
+    const badgeClass = isExp ? 'badge-experiment' : 'badge-item';
+    const badgeLabel = isExp ? 'E' : 'R';
+    div.innerHTML = `<span class="badge ${badgeClass}">${badgeLabel}</span>${escapeHtml(item.name)}`;
     div.addEventListener('mousedown', e => { e.preventDefault(); insertItem(item); });
     dropdown.appendChild(div);
   });
 
+  const nAll = ITEMS.length;
   const info = document.createElement('div');
   info.id = 'item-count';
-  info.textContent = `${ac.results.length} of ${ITEMS.length} resources`;
+  info.textContent = `${ac.results.length} of ${nAll} entries`;
   dropdown.appendChild(info);
 
   dropdown.style.display = 'block';
@@ -151,7 +156,12 @@ function moveSelection(delta) {
   renderDropdown();
 }
 
-function itemUrl(item) { return `${BASE_URL}/database.php?mode=view&id=${item.id}`; }
+function itemUrl(item) {
+  if (item.type === 'experiments') {
+    return `${BASE_URL}/experiments.php?mode=view&id=${item.id}`;
+  }
+  return `${BASE_URL}/database.php?mode=view&id=${item.id}`;
+}
 
 function insertItem(item) {
   const link   = `[${item.name}](${itemUrl(item)})`;

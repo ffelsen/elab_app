@@ -25,6 +25,28 @@ def reset():
     st.session_state.selection = 'Choose a template'
 
 
+def _f(val, fmt=None):
+    """Return *val* (optionally formatted with *fmt*), or '__' if empty / None.
+
+    Use this for every template field so that un-filled fields are clearly
+    marked in the log entry rather than silently disappearing or showing a
+    misleading default number.
+
+    Examples:
+        _f(None)          → '__'
+        _f('')            → '__'
+        _f(3.14, '.2f')   → '3.14'
+        _f(None, '.2f')   → '__'   (early-exit before format)
+    """
+    if val is None:
+        return '__'
+    if isinstance(val, str) and not val.strip():
+        return '__'
+    if fmt is not None:
+        return format(val, fmt)
+    return str(val) if not isinstance(val, str) else val
+
+
 
 def _append(prompt: str):
     """Write *prompt* to the current elabFTW entry."""
@@ -92,14 +114,14 @@ def yaml_template_dialog(template: dict):
             if units:
                 col_val, col_unit = st.columns([2, 1])
                 with col_val:
-                    val = st.number_input(label, key=key_base)
+                    val = st.number_input(label, value=None, key=key_base)
                 with col_unit:
                     unit = st.selectbox("Unit", units, key=key_base + "_unit",
                                         label_visibility="hidden")
-                values[label] = f"{val:.3f} {unit}"
+                values[label] = f"{_f(val, '.3f')} {unit}".strip()
             else:
-                val = st.number_input(label, key=key_base)
-                values[label] = f"{val:.3f}"
+                val = st.number_input(label, value=None, key=key_base)
+                values[label] = _f(val, '.3f')
 
         elif ftype == "sci_number":
             if units:
@@ -114,21 +136,21 @@ def yaml_template_dialog(template: dict):
                 raw = st.text_input(label, placeholder="e.g. 3e-10",
                                     key=key_base)
                 unit = ""
-            # Parse and reformat, fall back to raw string if unparseable
+            # Parse and reformat; blank → '__'; unparseable → raw string
             try:
-                parsed = float(raw) if raw.strip() else 0.0
-                formatted = f"{parsed:.3e}"
+                parsed = float(raw) if raw.strip() else None
+                formatted = _f(parsed, '.3e')
             except ValueError:
-                formatted = raw.strip()
+                formatted = _f(raw.strip())
             values[label] = f"{formatted} {unit}".strip() if unit else formatted
 
         elif ftype == "select":
             val = st.selectbox(label, options, key=key_base)
-            values[label] = val or ""
+            values[label] = _f(val)
 
         elif ftype == "textarea":
             val = st.text_area(label, placeholder=placeholder, key=key_base)
-            values[label] = val or ""
+            values[label] = _f(val)
 
         else:  # default: text
             if units:
@@ -138,10 +160,10 @@ def yaml_template_dialog(template: dict):
                 with col_unit:
                     unit = st.selectbox("Unit", units, key=key_base + "_unit",
                                         label_visibility="hidden")
-                values[label] = f"{val} {unit}".strip() if val else ""
+                values[label] = f"{_f(val)} {unit}".strip()
             else:
                 val = st.text_input(label, placeholder=placeholder, key=key_base)
-                values[label] = val or ""
+                values[label] = _f(val)
 
     if st.button("Submit", on_click=reset):
         # Substitute {Label} placeholders in the output string
@@ -184,9 +206,9 @@ def template_xps_measurement():
 
     col_pow, col_vol = st.columns(2)
     with col_pow:
-        power = st.number_input("Power [W]", min_value=0.0, value=50.0, step=1.0, key="temp_pow")
+        power = st.number_input("Power [W]", min_value=0.0, value=None, step=1.0, key="temp_pow")
     with col_vol:
-        voltage = st.number_input("Voltage [kV]", min_value=0.0, value=15.0, step=0.1, key="temp_vol")
+        voltage = st.number_input("Voltage [kV]", min_value=0.0, value=None, step=0.1, key="temp_vol")
 
     st.markdown("**Core Levels**")
     core_levels = st.text_input("Enter core levels (comma-separated)",
@@ -199,8 +221,8 @@ def template_xps_measurement():
         gas1 = st.text_input("Gas 1", placeholder="e.g., N2", key="temp_gas1")
         gas2 = st.text_input("Gas 2", placeholder="e.g., O2", key="temp_gas2")
     with col_gas2:
-        pressure1 = st.number_input("Pressure 1 [mbar]", min_value=0.0, value=0.0, format="%.2e", key="temp_p1")
-        pressure2 = st.number_input("Pressure 2 [mbar]", min_value=0.0, value=0.0, format="%.2e", key="temp_p2")
+        pressure1 = st.number_input("Pressure 1 [mbar]", min_value=0.0, value=None, format="%.2e", key="temp_p1")
+        pressure2 = st.number_input("Pressure 2 [mbar]", min_value=0.0, value=None, format="%.2e", key="temp_p2")
 
     comment = st.text_area("Comment", placeholder="Additional notes...", key="temp_comment")
 
@@ -209,14 +231,16 @@ def template_xps_measurement():
             "**XPS Measurement**",
             f"Excitation: {excite}",
             f"Spot Setting: {spot}",
-            f"Power: {power} W, Voltage: {voltage} kV",
+            f"Power: {_f(power, '.1f')} W, Voltage: {_f(voltage, '.1f')} kV",
         ]
         if core_levels.strip():
             prompt_parts.append(f"Core Levels: {core_levels}")
+        else:
+            prompt_parts.append(f"Core Levels: {_f(core_levels)}")
         gases = []
-        if gas1.strip() and pressure1 > 0:
+        if gas1.strip() and pressure1 is not None and pressure1 > 0:
             gases.append(f"{gas1} ({pressure1:.2e} mbar)")
-        if gas2.strip() and pressure2 > 0:
+        if gas2.strip() and pressure2 is not None and pressure2 > 0:
             gases.append(f"{gas2} ({pressure2:.2e} mbar)")
         if gases:
             prompt_parts.append(f"Gases: {', '.join(gases)}")
@@ -255,13 +279,13 @@ def template_xps_reference():
 
     col_pow, col_vol = st.columns(2)
     with col_pow:
-        power = st.number_input("Power [W]", min_value=0.0, value=50.0, step=1.0, key="temp_ref_pow")
+        power = st.number_input("Power [W]", min_value=0.0, value=None, step=1.0, key="temp_ref_pow")
     with col_vol:
-        voltage = st.number_input("Voltage [kV]", min_value=0.0, value=15.0, step=0.1, key="temp_ref_vol")
+        voltage = st.number_input("Voltage [kV]", min_value=0.0, value=None, step=0.1, key="temp_ref_vol")
 
     col_cps, col_ref = st.columns(2)
     with col_cps:
-        max_cps = st.number_input("Max. CPS", min_value=0.0, value=100000.0, step=1000.0, key="temp_ref_cps")
+        max_cps = st.number_input("Max. CPS", min_value=0.0, value=None, step=1000.0, key="temp_ref_cps")
     with col_ref:
         ref_peak = st.text_input("Reference Peak", placeholder="e.g., O 1s at 530 eV", key="temp_ref_peak")
 
@@ -271,8 +295,8 @@ def template_xps_reference():
         gas1 = st.text_input("Gas 1", placeholder="e.g., N2", key="temp_ref_gas1")
         gas2 = st.text_input("Gas 2", placeholder="e.g., O2", key="temp_ref_gas2")
     with col_gas2:
-        pressure1 = st.number_input("Pressure 1 [mbar]", min_value=0.0, value=0.0, format="%.2e", key="temp_ref_p1")
-        pressure2 = st.number_input("Pressure 2 [mbar]", min_value=0.0, value=0.0, format="%.2e", key="temp_ref_p2")
+        pressure1 = st.number_input("Pressure 1 [mbar]", min_value=0.0, value=None, format="%.2e", key="temp_ref_p1")
+        pressure2 = st.number_input("Pressure 2 [mbar]", min_value=0.0, value=None, format="%.2e", key="temp_ref_p2")
 
     comment = st.text_area("Comment", placeholder="Additional notes...", key="temp_ref_comment")
 
@@ -281,15 +305,14 @@ def template_xps_reference():
             "**XPS Reference Measurement**",
             f"Excitation: {excite}",
             f"Spot Setting: {spot}",
-            f"Power: {power} W, Voltage: {voltage} kV",
-            f"Max. CPS: {max_cps:.0f}",
+            f"Power: {_f(power, '.1f')} W, Voltage: {_f(voltage, '.1f')} kV",
+            f"Max. CPS: {_f(max_cps, '.0f')}",
         ]
-        if ref_peak.strip():
-            prompt_parts.append(f"Reference Peak: {ref_peak}")
+        prompt_parts.append(f"Reference Peak: {_f(ref_peak)}")
         gases = []
-        if gas1.strip() and pressure1 > 0:
+        if gas1.strip() and pressure1 is not None and pressure1 > 0:
             gases.append(f"{gas1} ({pressure1:.2e} mbar)")
-        if gas2.strip() and pressure2 > 0:
+        if gas2.strip() and pressure2 is not None and pressure2 > 0:
             gases.append(f"{gas2} ({pressure2:.2e} mbar)")
         if gases:
             prompt_parts.append(f"Gases: {', '.join(gases)}")

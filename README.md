@@ -137,7 +137,7 @@ For templates that need conditional fields (e.g. spot size depending on excitati
 
 ---
 
-# Log table format (v3.1)
+# Log table format (v3.2)
 
 Each elab-app log is stored as an HTML table inside the elabFTW entry body. The format has been stable since v2.x with one addition in v3.0: a per-row **App version** column.
 
@@ -145,8 +145,8 @@ Each elab-app log is stored as an HTML table inside the elabFTW entry body. The 
 |--------|---------|
 | ISO time (ISO 8601) | Timestamp of the log entry |
 | Log (newest to oldest) | Free-text content (supports Markdown → HTML) |
-| Initials | User initials (lowercase, max 6 chars) |
-| App version | Version of elab_app that wrote the row (e.g. `v3.1`); rows migrated from v2.x show `2.x` |
+| Initials | User initials (lowercase, max 6 chars); `#` marks system-generated back-reference notes |
+| App version | Version of elab_app that wrote the row (e.g. `v3.2`); rows migrated from v2.x show `2.x` |
 
 - The first row of every table is an identifier row (`elab_app | repo URL | | `) used for detection.
 - The app merges all log tables it finds in an entry into one on the next write — multiple tables are consolidated automatically regardless of which app version created them.
@@ -171,6 +171,12 @@ When a log entry references an elabFTW resource or experiment using an internal 
 * Download log entries filtered by date range as a zip of JSON files
 * Per-row app version tracking in the log table
 * Auto-linking of referenced resources/experiments as elabFTW database links
+* Automatic back-reference notes on linked entries (`#` initials marks system rows, parseable/filterable)
+* `#` hashtag autocomplete supports both resources (blue **R**) and experiments (green **E**)
+* Empty template fields render as `__` instead of disappearing or showing a misleading default
+* Wide two-column layout: entry selector on the left, tabbed input (Chat / Template / Voice / CSV / Sketch) on the right
+* Dedicated User page in the navigation sidebar: shows name, initials, and team; contains the logout button
+* Sidebar collapsed by default; lands on the Log page after login
 * API error handling with failed-entry history, red highlighting, and re-send button
 * About page with version check against the GitHub repository
 

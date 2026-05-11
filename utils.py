@@ -1,10 +1,21 @@
 import re
 import streamlit as st
 from version import LOG_SCHEMA_VERSION, LOG_SCHEMA_APP, LOG_SCHEMA_URL
+from auth import ELAB_HOST
 import elabapi_python
 import datetime
 from PIL import Image
 import markdown as md
+
+# Base URL used for building links in back-reference notes (strip /api/v2 suffix)
+_BASE_URL = ELAB_HOST.replace('/api/v2', '')
+
+def _attr(obj, key):
+    """Read *key* from either an object (attribute) or a dict — handles both
+    elabapi_python >=5.5 (returns dicts) and <5.3 (returns model objects)."""
+    if isinstance(obj, dict):
+        return obj.get(key)
+    return getattr(obj, key, None)
 
 def append_to_experiment_old(api_client, exp_id, content):
     """Append a time stamped comment to an ElabFTW entry
@@ -29,10 +40,10 @@ def append_to_experiment_old(api_client, exp_id, content):
     # initialize experiments api
     experimentsApi = elabapi_python.ExperimentsApi(api_client)
     # upload new content
-    experimentsApi.patch_experiment(exp_id,body={'body':new_content})
+    experimentsApi.patch_experiment(body={'body': new_content}, id=exp_id)
     return True
 
-def append_to_experiment(api_client, exp_id, content, custom_timestamp=None, entity_type='experiments', initials=''):
+def append_to_experiment(api_client, exp_id, content, custom_timestamp=None, entity_type='experiments', initials='', _skip_backref=False):
     """Append a time stamped comment to an ElabFTW entry
     in a tabular format
 
@@ -72,12 +83,17 @@ def append_to_experiment(api_client, exp_id, content, custom_timestamp=None, ent
         new_content, inserted, skipped, n_tables = _consolidate(current_content, [new_row])
 
         if entity_type == 'items':
-            elabapi_python.ItemsApi(api_client).patch_item(exp_id, body={'body': new_content})
+            elabapi_python.ItemsApi(api_client).patch_item(body={'body': new_content}, id=exp_id)
         else:
-            elabapi_python.ExperimentsApi(api_client).patch_experiment(exp_id, body={'body': new_content})
+            elabapi_python.ExperimentsApi(api_client).patch_experiment(body={'body': new_content}, id=exp_id)
 
         # mirror any elabFTW internal links in the log text as proper database links
-        _create_links_from_html(api_client, entity_type, exp_id, content_html)
+        # and (unless this is itself a back-reference note) post a system note on each
+        # linked entry so its log records which entry tagged it.
+        if not _skip_backref:
+            source_name = st.session_state.get('exp_name', str(exp_id))
+            _create_links_from_html(api_client, entity_type, exp_id, content_html,
+                                     source_name=source_name, source_initials=initials)
 
         # count total rows in the locally-built content
         all_tables = _find_all_log_tables(new_content)
@@ -86,21 +102,22 @@ def append_to_experiment(api_client, exp_id, content, custom_timestamp=None, ent
         _failed = True
         _error  = str(exc)
 
-    # always record in session log — failed entries are shown in red with a re-send button
-    if 'session_log' not in st.session_state:
-        st.session_state['session_log'] = []
-    st.session_state['session_log'].append({
-        'exp_name':    st.session_state.get('exp_name', str(exp_id)),
-        'exp_id':      exp_id,
-        'entity_type': entity_type,
-        'timestamp':   timestamp,
-        'content':     content_plain,
-        'initials':    initials,
-        'n_tables':    n_tables,
-        'total_rows':  total_rows,
-        'failed':      _failed,
-        'error':       _error,
-    })
+    # Record in session log (skip system back-reference notes — initials='#')
+    if initials != '#':
+        if 'session_log' not in st.session_state:
+            st.session_state['session_log'] = []
+        st.session_state['session_log'].append({
+            'exp_name':    st.session_state.get('exp_name', str(exp_id)),
+            'exp_id':      exp_id,
+            'entity_type': entity_type,
+            'timestamp':   timestamp,
+            'content':     content_plain,
+            'initials':    initials,
+            'n_tables':    n_tables,
+            'total_rows':  total_rows,
+            'failed':      _failed,
+            'error':       _error,
+        })
     return not _failed
 
 def upload_image(api_client, exp_id, path, entity_type='experiments'):
@@ -222,9 +239,9 @@ def create_item(api_client, name, comment='', catid=0):
     itemsApi.post_item(body={'category': catid})
     names, ids, items = get_items(api_client)
     item_id = ids[names.index('Untitled')]
-    itemsApi.patch_item(item_id, body={'title': name})
+    itemsApi.patch_item(body={'title': name}, id=item_id)
     if comment != '':
-        itemsApi.patch_item(item_id, body={'body': comment})
+        itemsApi.patch_item(body={'body': comment}, id=item_id)
     return True
 
 def get_resource_categories(api_client):
@@ -254,10 +271,10 @@ def create_experiment(api_client, name, comment='', catid = 0):
     experimentsApi.post_experiment()
     names, ids, exps = get_experiments(api_client)
     exp_id = ids[names.index('Untitled')]
-    experimentsApi.patch_experiment(exp_id, body={'title':name})
+    experimentsApi.patch_experiment(body={'title': name}, id=exp_id)
     if comment != '':
-        experimentsApi.patch_experiment(exp_id, body={'body':comment})
-    experimentsApi.patch_experiment(exp_id, body={'category':catid})
+        experimentsApi.patch_experiment(body={'body': comment}, id=exp_id)
+    experimentsApi.patch_experiment(body={'category': catid}, id=exp_id)
 
     return True
 
@@ -275,27 +292,26 @@ def get_user_id(api_client, fn, ln):
     uapi = elabapi_python.UsersApi(api_client)
     users = uapi.read_users()
     for u in users:
-        if u.fullname == ' '.join([fn,ln]):
-            return u.userid
-    else:
-        print('User %s %s does not exist!'%(fn,ln))
-        return None
+        if _attr(u, 'fullname') == ' '.join([fn, ln]):
+            return _attr(u, 'userid')
+    print('User %s %s does not exist!' % (fn, ln))
+    return None
 
 def get_teams(api_client, userid):
-    """get the ids and names of teams the current user 
-    is assigned to 
-    
+    """get the ids and names of teams the current user
+    is assigned to
+
     Keyword arguments:
     api_client -- elabapi_python api_client instance
     userid -- id of the user
-     
+
     Returns:
-    [t.id for t in u.teams] -- ids of the teams 
-    [t.name for t in u.teams] -- names of the teams 
+    ids   -- list of team ids
+    names -- list of team names
     """
-    uapi = elabapi_python.UsersApi(api_client)
-    u = uapi.read_user(userid)
-    return [t.id for t in u.teams], [t.name for t in u.teams] 
+    tapi = elabapi_python.TeamsApi(api_client)
+    teams = tapi.read_teams() or []
+    return [_attr(t, 'id') for t in teams], [_attr(t, 'name') for t in teams]
 
 def get_categories(api_client, team_id):
     """get all experiment categories available to 
@@ -330,8 +346,8 @@ def get_name(api_client, userid):
     uapi = elabapi_python.UsersApi(api_client)
     users = uapi.read_users()
     for u in users:
-        if u.userid == userid:
-            return u.fullname
+        if _attr(u, 'userid') == userid:
+            return _attr(u, 'fullname')
     return False
 
 # ── Log-table helpers ─────────────────────────────────────────────────────────
@@ -353,20 +369,30 @@ _ITEM_LINK_RE  = re.compile(r'database\.php\?mode=view&(?:amp;)?id=(\d+)', re.IG
 _EXP_LINK_RE   = re.compile(r'experiments\.php\?mode=view&(?:amp;)?id=(\d+)', re.IGNORECASE)
 
 
-def _create_links_from_html(api_client, entity_type, entity_id, content_html):
-    """Parse content_html for elabFTW internal resource/experiment links and create
-    them as proper database-level links on the entry.
+def _create_links_from_html(api_client, entity_type, entity_id, content_html,
+                             source_name='', source_initials=''):
+    """Parse content_html for elabFTW internal resource/experiment links, create
+    proper database-level links, and post a system back-reference note on each
+    linked entry so its log records which entry tagged it.
 
     elabFTW's own editor does this automatically; this mirrors that behaviour for
-    links inserted through elab_app.  Errors are silently ignored (e.g. the link
-    already exists, or the referenced entry is not accessible).
+    links inserted through elab_app.  All errors are silently ignored.
 
     Detects:
       database.php?mode=view&id=XXXX    → items_links  (resources)
       experiments.php?mode=view&id=XXXX → experiments_links
+
+    Back-reference notes use initials='#' (reserved marker for system messages).
+    They are excluded from the session history and never trigger further back-refs
+    (append_to_experiment passes _skip_backref=True for '#' posts).
     """
     item_ids = {int(m) for m in _ITEM_LINK_RE.findall(content_html)}
     exp_ids  = {int(m) for m in _EXP_LINK_RE.findall(content_html)}
+
+    src_page  = 'experiments.php' if entity_type == 'experiments' else 'database.php'
+    src_url   = f"{_BASE_URL}/{src_page}?mode=view&id={entity_id}"
+    src_label = 'Experiment' if entity_type == 'experiments' else 'Resource'
+    posted_by = source_initials or '?'
 
     if item_ids:
         link_api = elabapi_python.LinksToItemsApi(api_client)
@@ -375,6 +401,15 @@ def _create_links_from_html(api_client, entity_type, entity_id, content_html):
                 link_api.post_entity_items_links(entity_type, entity_id, item_id)
             except Exception:
                 pass
+            if source_name:
+                note = (f"[elab-app] {src_label} [{source_name}]({src_url}) "
+                        f"tagged this resource. Posted by {posted_by}.")
+                try:
+                    append_to_experiment(api_client, item_id, note,
+                                         entity_type='items', initials='#',
+                                         _skip_backref=True)
+                except Exception:
+                    pass
 
     if exp_ids:
         link_api = elabapi_python.LinksToExperimentsApi(api_client)
@@ -383,6 +418,16 @@ def _create_links_from_html(api_client, entity_type, entity_id, content_html):
                 link_api.post_entity_experiments_links(entity_type, entity_id, linked_exp_id)
             except Exception:
                 pass
+            # Don't post a back-ref to the entry itself (self-link)
+            if source_name and linked_exp_id != entity_id:
+                note = (f"[elab-app] {src_label} [{source_name}]({src_url}) "
+                        f"tagged this experiment. Posted by {posted_by}.")
+                try:
+                    append_to_experiment(api_client, linked_exp_id, note,
+                                         entity_type='experiments', initials='#',
+                                         _skip_backref=True)
+                except Exception:
+                    pass
 
 
 def _find_all_log_tables(html):
@@ -522,9 +567,9 @@ def bulk_append_to_experiment(api_client, exp_id, new_rows, entity_type='experim
         new_content, inserted, skipped, _ = _consolidate(current_content, new_rows)
 
         if entity_type == 'items':
-            elabapi_python.ItemsApi(api_client).patch_item(exp_id, body={'body': new_content})
+            elabapi_python.ItemsApi(api_client).patch_item(body={'body': new_content}, id=exp_id)
         else:
-            elabapi_python.ExperimentsApi(api_client).patch_experiment(exp_id, body={'body': new_content})
+            elabapi_python.ExperimentsApi(api_client).patch_experiment(body={'body': new_content}, id=exp_id)
     except Exception as exc:
         _failed = True
         _error  = str(exc)
@@ -582,7 +627,7 @@ def check_log_compatibility(body):
             reasons.append(f"timestamp '{ts}' is not valid ISO 8601")
         if not content.strip():
             reasons.append("log text is empty")
-        if not (_SHORT_NAME_RE.match(initials) and len(initials) <= 6):
+        if initials != '#' and not (_SHORT_NAME_RE.match(initials) and len(initials) <= 6):
             reasons.append(f"initials '{initials}' invalid (lowercase, max 6 chars, start with a letter)")
         if reasons:
             bad_rows.append((i, (ts, content, initials, app_ver), '; '.join(reasons)))
