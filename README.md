@@ -180,8 +180,3 @@ When a log entry references an elabFTW resource or experiment using an internal 
 * API error handling with failed-entry history, red highlighting, and re-send button
 * About page with version check against the GitHub repository
 
-# To Do
-
-* Single sign-on (e.g. Shibboleth)
-* Team switching within the app session
-* Connecting to data (e.g. on a NAS or data tagger)
