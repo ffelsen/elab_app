@@ -64,7 +64,7 @@ def append_to_experiment(api_client, exp_id, content, custom_timestamp=None, ent
         timestamp = now.strftime("%Y-%m-%dT%H:%M:%S")
 
     content_plain = content                 # keep original for session log
-    content_html  = md.markdown(content)
+    content_html  = md.markdown(content, extensions=['nl2br'])
 
     # fetch + merge + patch — wrap everything so any network/permission error is caught
     _failed = False
@@ -93,7 +93,8 @@ def append_to_experiment(api_client, exp_id, content, custom_timestamp=None, ent
         if not _skip_backref:
             source_name = st.session_state.get('exp_name', str(exp_id))
             _create_links_from_html(api_client, entity_type, exp_id, content_html,
-                                     source_name=source_name, source_initials=initials)
+                                     source_name=source_name, source_initials=initials,
+                                     source_content=content_plain)
 
         # count total rows in the locally-built content
         all_tables = _find_all_log_tables(new_content)
@@ -370,7 +371,7 @@ _EXP_LINK_RE   = re.compile(r'experiments\.php\?mode=view&(?:amp;)?id=(\d+)', re
 
 
 def _create_links_from_html(api_client, entity_type, entity_id, content_html,
-                             source_name='', source_initials=''):
+                             source_name='', source_initials='', source_content=''):
     """Parse content_html for elabFTW internal resource/experiment links, create
     proper database-level links, and post a system back-reference note on each
     linked entry so its log records which entry tagged it.
@@ -394,6 +395,13 @@ def _create_links_from_html(api_client, entity_type, entity_id, content_html,
     src_label = 'Experiment' if entity_type == 'experiments' else 'Resource'
     posted_by = source_initials or '?'
 
+    # Quote the original message; prefix each line with "> " for Markdown blockquote
+    def _quoted(text):
+        if not text or not text.strip():
+            return ''
+        lines = '\n'.join(f'> {line}' for line in text.strip().splitlines())
+        return f'\n\n{lines}'
+
     if item_ids:
         link_api = elabapi_python.LinksToItemsApi(api_client)
         for item_id in item_ids:
@@ -403,7 +411,8 @@ def _create_links_from_html(api_client, entity_type, entity_id, content_html,
                 pass
             if source_name:
                 note = (f"[elab-app] {src_label} [{source_name}]({src_url}) "
-                        f"tagged this resource. Posted by {posted_by}.")
+                        f"tagged this resource. User {posted_by} posted:"
+                        f"{_quoted(source_content)}")
                 try:
                     append_to_experiment(api_client, item_id, note,
                                          entity_type='items', initials='#',
@@ -421,7 +430,8 @@ def _create_links_from_html(api_client, entity_type, entity_id, content_html,
             # Don't post a back-ref to the entry itself (self-link)
             if source_name and linked_exp_id != entity_id:
                 note = (f"[elab-app] {src_label} [{source_name}]({src_url}) "
-                        f"tagged this experiment. Posted by {posted_by}.")
+                        f"tagged this experiment. User {posted_by} posted:"
+                        f"{_quoted(source_content)}")
                 try:
                     append_to_experiment(api_client, linked_exp_id, note,
                                          entity_type='experiments', initials='#',

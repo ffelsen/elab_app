@@ -201,9 +201,15 @@ secrets.json
 # Encrypted user key files (personal, never commit)
 keys/*.enc
 
-# YAML templates are personal/lab-specific — only the example is tracked
-templates/*.yaml
-!templates/example_all_options.yaml
+# Templates — only reference examples in the package source are tracked.
+# Root /templates/ is a dev-only mirror of src/elab_app/templates/ — ignore entirely.
+/templates/
+# Installed package source: track only the reference examples.
+src/elab_app/templates/*.yaml
+!src/elab_app/templates/example_all_options.yaml
+src/elab_app/templates/*.py
+!src/elab_app/templates/xps_measurement.py
+!src/elab_app/templates/__init__.py
 
 # Model cache (Whisper downloads large models)
 models/

@@ -16,6 +16,24 @@ import streamlit as st
 import elabapi_python
 from PIL import Image
 from platformdirs import user_config_dir
+
+# ── Compatibility shim for streamlit-drawable-canvas ─────────────────────────
+# streamlit_drawable_canvas 0.9.3 calls streamlit.elements.image.image_to_url,
+# which was removed in Streamlit 1.37. Inject a replacement before the import
+# so the canvas package finds what it expects. The shim encodes the background
+# image as a base64 data URL, which works for all standard local deployments.
+try:
+    import streamlit.elements.image as _st_image_mod
+    if not hasattr(_st_image_mod, 'image_to_url'):
+        import io as _io, base64 as _b64
+        def _image_to_url_compat(image, width, clamp, channels, output_format, image_id):
+            _buf = _io.BytesIO()
+            image.save(_buf, format='PNG')
+            return 'data:image/png;base64,' + _b64.b64encode(_buf.getvalue()).decode()
+        _st_image_mod.image_to_url = _image_to_url_compat
+except Exception:
+    pass
+
 from streamlit_drawable_canvas import st_canvas
 
 from utils import (

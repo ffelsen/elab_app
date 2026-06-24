@@ -57,3 +57,31 @@ output: |
   T = {Temperature}, p = {Pressure}
 
   {Notes}
+
+# ── defaults (optional) ───────────────────────────────────────────────────────
+# Named sets of pre-filled values shown in a "Fill default values" dropdown.
+# A dropdown appears above the fields only when this section is present.
+# - Keys match the field labels exactly.
+# - For fields with units, add a separate "Label unit" key.
+# - Omit a label to leave that field untouched when the set is applied.
+# - Use null or "" to set a field to blank (user must fill it in).
+# - select fields: provide the option string exactly as it appears in options.
+defaults:
+  - name: XPS in vacuum
+    values:
+      Temperature: 300
+      Temperature unit: K
+      Pressure: 1e-10
+      Pressure unit: mbar
+      Method: XPS
+      Sample: ""        # blank — user must fill this in
+      Notes: ""
+
+  - name: XPS in O2
+    values:
+      Temperature: 573
+      Temperature unit: K
+      Pressure: 1e-6
+      Pressure unit: mbar
+      Method: XPS
+      Notes: "In O2 atmosphere"

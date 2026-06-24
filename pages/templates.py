@@ -1,73 +1,26 @@
 """templates.py — Template registry for the ElabFTW Logger.
 
 Two kinds of templates coexist:
-  1. Python functions decorated with @st.dialog (for complex/conditional logic).
-     Naming convention: the function name must contain the word "template".
-  2. YAML files in the templates/ folder (for straightforward field lists).
-     These are loaded and rendered generically by yaml_template_dialog().
-
-comment.py discovers both kinds and merges them into one dropdown.
+  1. Python .py files in the templates/ folder (for complex/conditional logic).
+     Each file defines one @st.dialog function whose name contains "template".
+     Register new ones in PYTHON_TEMPLATES at the bottom of this file.
+  2. YAML .yaml files in the user templates folder (for straightforward field lists).
+     Loaded and rendered generically by yaml_template_dialog().
+     Add defaults: sections to YAML files to enable the "Fill default values" dropdown.
 """
 
 from pathlib import Path
+from warnings import filterwarnings
 
 import streamlit as st
 import yaml
 from platformdirs import user_config_dir
-from warnings import filterwarnings
-from utils import append_to_experiment
+
+from template_helpers import _f, reset, _append  # noqa: F401 — re-exported for comment.py compat
+from templates.xps_measurement import template_xps_measurement
+from templates.xps_reference import template_xps_reference
 
 filterwarnings('ignore')
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
-def reset():
-    st.session_state.selection = 'Choose a template'
-
-
-def _f(val, fmt=None):
-    """Return *val* (optionally formatted with *fmt*), or '__' if empty / None.
-
-    Use this for every template field so that un-filled fields are clearly
-    marked in the log entry rather than silently disappearing or showing a
-    misleading default number.
-
-    Examples:
-        _f(None)          → '__'
-        _f('')            → '__'
-        _f(3.14, '.2f')   → '3.14'
-        _f(None, '.2f')   → '__'   (early-exit before format)
-    """
-    if val is None:
-        return '__'
-    if isinstance(val, str) and not val.strip():
-        return '__'
-    if fmt is not None:
-        return format(val, fmt)
-    return str(val) if not isinstance(val, str) else val
-
-
-
-def _append(prompt: str):
-    """Write *prompt* to the current elabFTW entry."""
-    entity_type = st.session_state.get('entity_type', 'experiments')
-    ok = append_to_experiment(
-        st.session_state.api_client,
-        st.session_state.exp_id,
-        prompt,
-        entity_type=entity_type,
-        initials=st.session_state.get('initials', ''),
-    )
-    if ok:
-        entry_label = 'experiment' if entity_type == 'experiments' else 'resource'
-        message = "Wrote in %s %s: %s" % (entry_label, st.session_state.exp_name, prompt[:80])
-        if "chat_history" not in st.session_state:
-            st.session_state["chat_history"] = []
-        st.session_state["chat_history"].append(message)
-        if len(st.session_state["chat_history"]) > 10:
-            st.session_state["chat_history"] = st.session_state["chat_history"][-10:]
-    else:
-        st.error("⚠️ Could not send to elabFTW — see **Session History** on the Add text logs page.")
 
 
 # ── YAML loader ───────────────────────────────────────────────────────────────
@@ -76,8 +29,7 @@ TEMPLATES_DIR = Path(user_config_dir("elab_app")) / "templates"
 
 
 def load_yaml_templates() -> dict[str, dict]:
-    """Return a dict mapping template name → parsed YAML dict for every
-    .yaml file found in the templates/ directory."""
+    """Return name → parsed YAML dict for every .yaml file in the templates dir."""
     result = {}
     if not TEMPLATES_DIR.exists():
         return result
@@ -99,16 +51,64 @@ def yaml_template_dialog(template: dict):
     """Render a form dialog from a parsed YAML template dict."""
     st.write(f"**{template['name']}**")
 
-    fields = template.get("fields", [])
-    values: dict[str, str] = {}   # label → formatted string for output
+    fields   = template.get("fields", [])
+    defaults = template.get("defaults", [])
+    tmpl_key = template['name']
+
+    # ── Defaults selector ────────────────────────────────────────────────────
+    if defaults:
+        sel_key = f"_yaml_{tmpl_key}_defaults_sel"
+
+        def _apply_defaults():
+            chosen_name = st.session_state[sel_key]
+            for field in fields:
+                label    = field["label"]
+                key_base = f"_yaml_{tmpl_key}_{label}"
+                if chosen_name == "<empty>":
+                    st.session_state.pop(key_base, None)
+                    st.session_state.pop(key_base + "_unit", None)
+                else:
+                    chosen = next((d for d in defaults if d["name"] == chosen_name), None)
+                    if not chosen:
+                        continue
+                    vals = chosen.get("values", {})
+                    if label in vals:
+                        v     = vals[label]
+                        ftype = field.get("type", "text")
+                        if ftype == "number":
+                            try:
+                                st.session_state[key_base] = float(v) if v not in (None, "") else None
+                            except (TypeError, ValueError):
+                                st.session_state[key_base] = None
+                        elif ftype == "sci_number":
+                            st.session_state[key_base] = str(v) if v not in (None, "") else ""
+                        elif ftype == "select":
+                            if v in field.get("options", []):
+                                st.session_state[key_base] = v
+                        else:  # text, textarea
+                            st.session_state[key_base] = str(v) if v is not None else ""
+                    unit_label = label + " unit"
+                    if unit_label in vals:
+                        st.session_state[key_base + "_unit"] = vals[unit_label]
+
+        st.selectbox(
+            "Fill default values",
+            ["<empty>"] + [d["name"] for d in defaults],
+            key=sel_key,
+            on_change=_apply_defaults,
+        )
+        st.divider()
+
+    # ── Fields ───────────────────────────────────────────────────────────────
+    values: dict[str, str] = {}
 
     for field in fields:
-        label = field["label"]
-        ftype = field.get("type", "text")
-        units = field.get("units", [])
-        options = field.get("options", [])
+        label       = field["label"]
+        ftype       = field.get("type", "text")
+        units       = field.get("units", [])
+        options     = field.get("options", [])
         placeholder = field.get("placeholder", "")
-        key_base = f"_yaml_{template['name']}_{label}"
+        key_base    = f"_yaml_{tmpl_key}_{label}"
 
         if ftype == "number":
             if units:
@@ -118,27 +118,24 @@ def yaml_template_dialog(template: dict):
                 with col_unit:
                     unit = st.selectbox("Unit", units, key=key_base + "_unit",
                                         label_visibility="hidden")
-                values[label] = f"{_f(val, '.3f')} {unit}".strip()
+                values[label] = f"{_f(val, 'g')} {unit}".strip()
             else:
                 val = st.number_input(label, value=None, key=key_base)
-                values[label] = _f(val, '.3f')
+                values[label] = _f(val, 'g')
 
         elif ftype == "sci_number":
             if units:
                 col_val, col_unit = st.columns([2, 1])
                 with col_val:
-                    raw = st.text_input(label, placeholder="e.g. 3e-10",
-                                        key=key_base)
+                    raw = st.text_input(label, placeholder="e.g. 3e-10", key=key_base)
                 with col_unit:
                     unit = st.selectbox("Unit", units, key=key_base + "_unit",
                                         label_visibility="hidden")
             else:
-                raw = st.text_input(label, placeholder="e.g. 3e-10",
-                                    key=key_base)
+                raw  = st.text_input(label, placeholder="e.g. 3e-10", key=key_base)
                 unit = ""
-            # Parse and reformat; blank → '__'; unparseable → raw string
             try:
-                parsed = float(raw) if raw.strip() else None
+                parsed    = float(raw) if raw.strip() else None
                 formatted = _f(parsed, '.3e')
             except ValueError:
                 formatted = _f(raw.strip())
@@ -166,168 +163,26 @@ def yaml_template_dialog(template: dict):
                 values[label] = _f(val)
 
     if st.button("Submit", on_click=reset):
-        # Substitute {Label} placeholders in the output string
         output_template = template.get("output", "")
+        if not isinstance(output_template, str):
+            st.error(
+                "⚠️ This template's `output:` field could not be read as text "
+                "(YAML parsed it as a non-string type). "
+                "Add `|` after `output:` in the YAML file to fix this."
+            )
+            return
         prompt = output_template
         for label, value in values.items():
             prompt = prompt.replace("{" + label + "}", value)
-        prompt = prompt.replace("\n", "  \n")  # preserve line breaks in Markdown → HTML
         st.session_state.prompt = prompt
         _append(prompt)
         st.rerun()
 
 
-# ── Python templates (complex / conditional logic) ────────────────────────────
+# ── Python template registry ──────────────────────────────────────────────────
+# Maps the dropdown label to the @st.dialog function.
+# Add new Python templates here after creating their file in templates/.
 
-@st.dialog("XPS Measurement")
-def template_xps_measurement():
-    st.write("XPS Measurement Template")
-
-    if not st.session_state.get("exp_id"):
-        st.error("❌ Please select an experiment first before using this template.")
-        if st.button("Close"):
-            st.rerun()
-        return
-
-    excitation_energies = ["Al K α₁ (1486.6 eV)", "Ag L α₁ (2984.3 eV)", "Cr K α₁ (5414.8 eV)"]
-    spot_settings = [
-        ["Al 120um 50W", "Al 250um 100W", "Al 330um 150W", "Al 70um 20W"],
-        ["Ag 130um 25W", "Ag 260um 50W", "Ag 370um 75W", "Ag 500um 100W", "Ag 70um 10W"],
-        ["Cr 200um 10W", "Cr 200um 10W (Energy = 23kV)", "Cr 200um 25W", "Cr 330um 50W",
-         "Cr 330um 50W (Energy = 23kV)", "Cr 430um 75W", "Cr 530um 100W"]
-    ]
-
-    col_exc, col_spot = st.columns(2)
-    with col_exc:
-        excite = st.selectbox("Excitation Energy:", excitation_energies, key="temp_exc")
-    with col_spot:
-        idx = excitation_energies.index(excite) if excite in excitation_energies else 0
-        spot = st.selectbox("Spot:", spot_settings[idx], key="temp_spot")
-
-    col_pow, col_vol = st.columns(2)
-    with col_pow:
-        power = st.number_input("Power [W]", min_value=0.0, value=None, step=1.0, key="temp_pow")
-    with col_vol:
-        voltage = st.number_input("Voltage [kV]", min_value=0.0, value=None, step=0.1, key="temp_vol")
-
-    st.markdown("**Core Levels**")
-    core_levels = st.text_input("Enter core levels (comma-separated)",
-                                placeholder="e.g., C 1s, O 1s, Ti 2p",
-                                key="temp_cores")
-
-    st.markdown("**Gas Composition**")
-    col_gas1, col_gas2 = st.columns(2)
-    with col_gas1:
-        gas1 = st.text_input("Gas 1", placeholder="e.g., N2", key="temp_gas1")
-        gas2 = st.text_input("Gas 2", placeholder="e.g., O2", key="temp_gas2")
-    with col_gas2:
-        pressure1 = st.number_input("Pressure 1 [mbar]", min_value=0.0, value=None, format="%.2e", key="temp_p1")
-        pressure2 = st.number_input("Pressure 2 [mbar]", min_value=0.0, value=None, format="%.2e", key="temp_p2")
-
-    comment = st.text_area("Comment", placeholder="Additional notes...", key="temp_comment")
-
-    if st.button("Submit", on_click=reset):
-        prompt_parts = [
-            "**XPS Measurement**",
-            f"Excitation: {excite}",
-            f"Spot Setting: {spot}",
-            f"Power: {_f(power, '.1f')} W, Voltage: {_f(voltage, '.1f')} kV",
-        ]
-        if core_levels.strip():
-            prompt_parts.append(f"Core Levels: {core_levels}")
-        else:
-            prompt_parts.append(f"Core Levels: {_f(core_levels)}")
-        gases = []
-        if gas1.strip() and pressure1 is not None and pressure1 > 0:
-            gases.append(f"{gas1} ({pressure1:.2e} mbar)")
-        if gas2.strip() and pressure2 is not None and pressure2 > 0:
-            gases.append(f"{gas2} ({pressure2:.2e} mbar)")
-        if gases:
-            prompt_parts.append(f"Gases: {', '.join(gases)}")
-        if comment.strip():
-            prompt_parts.append(f"Comment: {comment}")
-        prompt = "\n".join(prompt_parts)
-        st.session_state.prompt = prompt
-        _append(prompt)
-        st.rerun()
-
-
-@st.dialog("XPS Reference Measurement")
-def template_xps_reference():
-    st.write("XPS Reference Measurement Template")
-
-    if not st.session_state.get("exp_id"):
-        st.error("❌ Please select an experiment first before using this template.")
-        if st.button("Close"):
-            st.rerun()
-        return
-
-    excitation_energies = ["Al K α₁ (1486.6 eV)", "Ag L α₁ (2984.3 eV)", "Cr K α₁ (5414.8 eV)"]
-    spot_settings = [
-        ["Al 120um 50W", "Al 250um 100W", "Al 330um 150W", "Al 70um 20W"],
-        ["Ag 130um 25W", "Ag 260um 50W", "Ag 370um 75W", "Ag 500um 100W", "Ag 70um 10W"],
-        ["Cr 200um 10W", "Cr 200um 10W (Energy = 23kV)", "Cr 200um 25W", "Cr 330um 50W",
-         "Cr 330um 50W (Energy = 23kV)", "Cr 430um 75W", "Cr 530um 100W"]
-    ]
-
-    col_exc, col_spot = st.columns(2)
-    with col_exc:
-        excite = st.selectbox("Excitation Energy:", excitation_energies, key="temp_ref_exc")
-    with col_spot:
-        idx = excitation_energies.index(excite) if excite in excitation_energies else 0
-        spot = st.selectbox("Spot:", spot_settings[idx], key="temp_ref_spot")
-
-    col_pow, col_vol = st.columns(2)
-    with col_pow:
-        power = st.number_input("Power [W]", min_value=0.0, value=None, step=1.0, key="temp_ref_pow")
-    with col_vol:
-        voltage = st.number_input("Voltage [kV]", min_value=0.0, value=None, step=0.1, key="temp_ref_vol")
-
-    col_cps, col_ref = st.columns(2)
-    with col_cps:
-        max_cps = st.number_input("Max. CPS", min_value=0.0, value=None, step=1000.0, key="temp_ref_cps")
-    with col_ref:
-        ref_peak = st.text_input("Reference Peak", placeholder="e.g., O 1s at 530 eV", key="temp_ref_peak")
-
-    st.markdown("**Gas Composition**")
-    col_gas1, col_gas2 = st.columns(2)
-    with col_gas1:
-        gas1 = st.text_input("Gas 1", placeholder="e.g., N2", key="temp_ref_gas1")
-        gas2 = st.text_input("Gas 2", placeholder="e.g., O2", key="temp_ref_gas2")
-    with col_gas2:
-        pressure1 = st.number_input("Pressure 1 [mbar]", min_value=0.0, value=None, format="%.2e", key="temp_ref_p1")
-        pressure2 = st.number_input("Pressure 2 [mbar]", min_value=0.0, value=None, format="%.2e", key="temp_ref_p2")
-
-    comment = st.text_area("Comment", placeholder="Additional notes...", key="temp_ref_comment")
-
-    if st.button("Submit", on_click=reset, key="submit_xps_ref"):
-        prompt_parts = [
-            "**XPS Reference Measurement**",
-            f"Excitation: {excite}",
-            f"Spot Setting: {spot}",
-            f"Power: {_f(power, '.1f')} W, Voltage: {_f(voltage, '.1f')} kV",
-            f"Max. CPS: {_f(max_cps, '.0f')}",
-        ]
-        prompt_parts.append(f"Reference Peak: {_f(ref_peak)}")
-        gases = []
-        if gas1.strip() and pressure1 is not None and pressure1 > 0:
-            gases.append(f"{gas1} ({pressure1:.2e} mbar)")
-        if gas2.strip() and pressure2 is not None and pressure2 > 0:
-            gases.append(f"{gas2} ({pressure2:.2e} mbar)")
-        if gases:
-            prompt_parts.append(f"Gases: {', '.join(gases)}")
-        if comment.strip():
-            prompt_parts.append(f"Comment: {comment}")
-        prompt = "\n".join(prompt_parts)
-        st.session_state.prompt = prompt
-        _append(prompt)
-        st.rerun()
-
-
-# ── Populate registry ─────────────────────────────────────────────────────────
-# Maps the display name shown in the dropdown to the dialog function.
-# Add new Python templates here — must stay at the bottom of this file,
-# after all function definitions, to avoid NameErrors.
 PYTHON_TEMPLATES = {
     "XPS Measurement":           template_xps_measurement,
     "XPS Reference Measurement": template_xps_reference,

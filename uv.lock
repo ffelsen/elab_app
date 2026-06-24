@@ -237,30 +237,34 @@ wheels = [
 
 [[package]]
 name = "elab-app"
-version = "0.1.0"
+version = "3.2"
 source = { editable = "." }
 dependencies = [
     { name = "cryptography" },
     { name = "elabapi-python" },
     { name = "markdown" },
     { name = "numpy" },
-    { name = "openai-whisper" },
     { name = "pandas" },
     { name = "pillow" },
     { name = "platformdirs" },
-    { name = "pyaudio" },
     { name = "python-dateutil" },
     { name = "pyyaml" },
     { name = "requests" },
     { name = "rich" },
-    { name = "soundfile" },
-    { name = "speechrecognition" },
     { name = "streamlit" },
     { name = "streamlit-drawable-canvas" },
-    { name = "torch" },
-    { name = "torchaudio" },
     { name = "tqdm" },
     { name = "typer" },
+]
+
+[package.optional-dependencies]
+transcription = [
+    { name = "openai-whisper" },
+    { name = "pyaudio" },
+    { name = "soundfile" },
+    { name = "speechrecognition" },
+    { name = "torch" },
+    { name = "torchaudio" },
 ]
 
 [package.metadata]
@@ -269,24 +273,25 @@ requires-dist = [
     { name = "elabapi-python", specifier = ">=5.2.0" },
     { name = "markdown", specifier = ">=3.10.2" },
     { name = "numpy", specifier = ">=1.21.0" },
-    { name = "openai-whisper", specifier = ">=20231117" },
+    { name = "openai-whisper", marker = "extra == 'transcription'", specifier = ">=20231117" },
     { name = "pandas", specifier = ">=1.5.0" },
     { name = "pillow", specifier = ">=10.0.0" },
     { name = "platformdirs", specifier = ">=4.0.0" },
-    { name = "pyaudio", specifier = ">=0.2.11" },
+    { name = "pyaudio", marker = "extra == 'transcription'", specifier = ">=0.2.11" },
     { name = "python-dateutil", specifier = ">=2.8.0" },
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "requests", specifier = ">=2.25.0" },
     { name = "rich", specifier = ">=13.0.0" },
-    { name = "soundfile", specifier = ">=0.12.0" },
-    { name = "speechrecognition", specifier = ">=3.10.0" },
+    { name = "soundfile", marker = "extra == 'transcription'", specifier = ">=0.12.0" },
+    { name = "speechrecognition", marker = "extra == 'transcription'", specifier = ">=3.10.0" },
     { name = "streamlit", specifier = ">=1.28.0" },
     { name = "streamlit-drawable-canvas" },
-    { name = "torch", specifier = ">=2.0.0" },
-    { name = "torchaudio", specifier = ">=2.0.0" },
+    { name = "torch", marker = "extra == 'transcription'", specifier = ">=2.0.0" },
+    { name = "torchaudio", marker = "extra == 'transcription'", specifier = ">=2.0.0" },
     { name = "tqdm", specifier = ">=4.64.0" },
     { name = "typer", specifier = ">=0.9.0" },
 ]
+provides-extras = ["transcription"]
 
 [[package]]
 name = "elabapi-python"
