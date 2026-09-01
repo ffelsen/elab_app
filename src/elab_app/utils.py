@@ -29,10 +29,8 @@ def append_to_experiment_old(api_client, exp_id, content):
     content = ': '.join([now.strftime("%Y-%m-%d_%H-%M-%S"),content]) # add time stamp
     content = content.replace('\n','<br>') # add line break
     
-    # get current content of the experiment
-    names, ids, exps = get_experiments(api_client)
-    ind = ids.index(exp_id)
-    current_content = exps[ind].body
+    # get current content of the experiment (single-entity endpoint gives full body)
+    current_content = elabapi_python.ExperimentsApi(api_client).get_experiment(id=exp_id).body
     
     # add new content
     new_content = '<br>'.join([current_content,content])
@@ -72,12 +70,14 @@ def append_to_experiment(api_client, exp_id, content, custom_timestamp=None, ent
     n_tables   = 0
     total_rows = 0
     try:
-        # get current content of the entry
+        # get current content of the entry via the SINGLE-entity endpoint.
+        # The list endpoint no longer includes 'body' since elabFTW 5.6.0, so
+        # reading it from the list (entries[..].body) yields '' and would
+        # OVERWRITE the whole entry on the following patch.
         if entity_type == 'items':
-            names, ids, entries = get_items(api_client)
+            current_content = elabapi_python.ItemsApi(api_client).get_item(id=exp_id).body or ''
         else:
-            names, ids, entries = get_experiments(api_client)
-        current_content = entries[ids.index(exp_id)].body or ''
+            current_content = elabapi_python.ExperimentsApi(api_client).get_experiment(id=exp_id).body or ''
 
         new_row = (timestamp, content_html, initials, LOG_SCHEMA_VERSION)
         new_content, inserted, skipped, n_tables = _consolidate(current_content, [new_row])
@@ -569,10 +569,10 @@ def bulk_append_to_experiment(api_client, exp_id, new_rows, entity_type='experim
     skipped  = 0
     try:
         if entity_type == 'items':
-            names, ids, entries = get_items(api_client)
+            # single-entity endpoint returns the full body (list does not since 5.6.0)
+            current_content = elabapi_python.ItemsApi(api_client).get_item(id=exp_id).body or ''
         else:
-            names, ids, entries = get_experiments(api_client)
-        current_content = entries[ids.index(exp_id)].body or ''
+            current_content = elabapi_python.ExperimentsApi(api_client).get_experiment(id=exp_id).body or ''
 
         new_content, inserted, skipped, _ = _consolidate(current_content, new_rows)
 
