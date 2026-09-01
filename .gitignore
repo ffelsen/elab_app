@@ -209,6 +209,7 @@ src/elab_app/templates/*.yaml
 !src/elab_app/templates/example_all_options.yaml
 src/elab_app/templates/*.py
 !src/elab_app/templates/xps_measurement.py
+!src/elab_app/templates/xps_reference.py
 !src/elab_app/templates/__init__.py
 
 # Model cache (Whisper downloads large models)
