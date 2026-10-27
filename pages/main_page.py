@@ -536,7 +536,6 @@ with col_input:
                 height=400,
                 drawing_mode=drawing_mode,
                 point_display_radius=point_display_radius,
-                display_toolbar=True,
                 key="sketch_canvas",
             )
 
