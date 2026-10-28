@@ -317,7 +317,15 @@ with col_open:
         entry = entries[names.index(exp_name)]
 
         # ── Compatibility check ────────────────────────────────────────────────
-        compat = check_log_compatibility(entry.body)
+        # The list endpoint omits 'body' since elabFTW 5.6.0 — fetch the single entry.
+        try:
+            if entity_type == 'items':
+                _body = elabapi_python.ItemsApi(st.session_state.api_client).get_item(id=exp_id).body
+            else:
+                _body = elabapi_python.ExperimentsApi(st.session_state.api_client).get_experiment(id=exp_id).body
+        except Exception:
+            _body = getattr(entry, 'body', None)
+        compat = check_log_compatibility(_body)
 
         if compat['status'] == 'no_table':
             st.info(
