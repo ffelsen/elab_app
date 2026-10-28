@@ -370,8 +370,10 @@ with col_open:
 # ── Separator column ──────────────────────────────────────────────────────────
 with col_sep:
     st.markdown(
-        '<div style="border-left:1px solid rgba(128,128,128,0.3);'
-        'height:calc(100vh - 200px);width:1px;margin:0 auto;pointer-events:none;"></div>',
+        '<style>'
+        'div[data-testid="stHorizontalBlock"]:has(.elab-sep-marker) > div[data-testid="stColumn"]:last-child'
+        '{border-left:1px solid rgba(128,128,128,0.3);padding-left:1.5rem;}'
+        '</style><span class="elab-sep-marker"></span>',
         unsafe_allow_html=True,
     )
 
